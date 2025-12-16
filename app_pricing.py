@@ -88,19 +88,15 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
         return None, "No hay datos para procesar. Por favor, carga o pega la información."
         
     df_temp = df.copy()
-    # Limpieza de nombres de columna a minúsculas para facilitar la detección
     df_temp.columns = [str(c).strip().lower() for c in df_temp.columns]
     
-    # B. Detección inteligente de columnas
     col_precio = next((c for c in df_temp.columns if 'precio' in c or 'pvp' in c or 'venta' in c), None)
-    # Volumen: Ampliada para incluir 'anuales' y 'ventas' (Ventas Anuales)
     col_volumen = next((c for c in df_temp.columns if 'cant' in c or 'volumen' in c or 'unid' in c or 'rotacion' in c or 'anuales' in c or 'ventas' in c), None)
     col_sku = next((c for c in df_temp.columns if 'sku' in c or 'prod' in c or 'cod' in c or 'ref' in c), 'sku_generado')
     
     if not col_precio or not col_volumen:
         return None, f"❌ Error: No encuentro columnas de 'Precio' o 'Cantidad'. Las columnas detectadas son: {list(df.columns)}"
 
-    # C. Motor de Elasticidad (Simulación Consultiva)
     if 'elasticidad' not in df_temp.columns:
         df_temp['elasticidad_sim'] = np.random.uniform(0.6, 2.5, size=len(df_temp))
     
@@ -132,7 +128,6 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
             precio_teorico = precio * 0.95
             precio_final = ajustar_a_psicologico(precio_teorico)
             
-            # Asumimos 0 ganancia si se recomienda bajar, el beneficio es volumen
             return 0, precio_final, f"⬇️ {accion_label}"
             
         return 0, precio, "✅ MANTENER"
@@ -152,7 +147,12 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
 
 # --- 4. INTERFAZ: BARRA LATERAL (CONFIGURACIÓN) ---
 with st.sidebar:
+    # --- ARREGLO DEL LOGO CON FONDO BLANCO ---
+    st.markdown('<div style="background-color: white; padding: 10px; border-radius: 5px;">', unsafe_allow_html=True)
     st.image("https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/eunoia-digital-logo.png", use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    # ------------------------------------------
+    
     st.header("🎛️ Panel de Control")
     
     modo_entrada = st.radio(
@@ -164,7 +164,6 @@ with st.sidebar:
     st.subheader("⚙️ Calibración")
     sensibilidad = st.slider("Agresividad de Estrategia", 0.5, 2.0, 1.0, 0.1, help="Mayor agresividad busca márgenes más altos en productos elásticos.")
     
-    # --- TRUCO: MODO ADMIN OCULTO ---
     st.markdown("---")
     with st.expander("Zona Admin (Solo Eunoia)"):
         modo_admin = st.checkbox("Mostrar Precios Reales", value=False)
@@ -287,8 +286,9 @@ elif df_final is not None and not df_final.empty:
             df_show['Precio Sugerido'] = df_show['precio_objetivo_interno'].apply(lambda x: f"${x:.2f}")
             st.success("🔓 MODO ADMIN ACTIVADO: Precios visibles.")
         else:
-            # CLIENTE: Mostrar bloqueo (Aquí se muestra el encabezado de acción)
-            df_show['Acción Sugerida'] = df_show['estado'].apply(lambda x: x.split(' ')[1] if ' ' in x else 'ACCIÓN').str.replace('PRECIO', 'PREMIUM')
+            # CLIENTE: Mostrar la acción (SUBIR/BAJAR) y bloquear el precio.
+            # Extrae solo la palabra "SUBIR" o "BAJAR"
+            df_show['Acción Sugerida'] = df_show['estado'].apply(lambda x: x.split(' ')[1]) 
             df_show['Precio Sugerido'] = "🔒 BLOCKED"
             
         # Tabla Final (Orden de Columnas)
