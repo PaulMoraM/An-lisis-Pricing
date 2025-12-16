@@ -90,6 +90,11 @@ def ajustar_a_psicologico(precio):
     else: return entero + 0.99
 
 def procesar_datos_pricing(df, sensibilidad=1.0):
+    
+    # Manejar caso de DataFrame inicial vacío
+    if df is None or df.empty:
+        return None, "No hay datos para procesar. Por favor, carga o pega la información."
+        
     # A. Limpieza de nombres de columnas
     df.columns = [str(c).strip().lower() for c in df.columns]
     
@@ -99,10 +104,10 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
     col_sku = next((c for c in df.columns if 'sku' in c or 'prod' in c or 'cod' in c or 'ref' in c), 'sku_generado')
     
     if not col_precio or not col_volumen:
+        # RETORNA NONE, que es lo que causaba el error
         return None, "❌ Error: No encuentro columnas de 'Precio' o 'Cantidad'. Revisa los encabezados de tu archivo."
 
     # C. Motor de Elasticidad (Simulación Consultiva)
-    # Si el cliente no trae elasticidad (99% de los casos), la simulamos
     if 'elasticidad' not in df.columns:
         df['elasticidad_sim'] = np.random.uniform(0.6, 2.5, size=len(df))
     
@@ -116,14 +121,11 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
             
         elas = row.get('elasticidad_sim', 1.5)
         
-        # Lógica: Si es inelástico (<1.0), soporta subida de precio
         if elas < 1.0:
-            # Fórmula: (Base - Elasticidad) * Factor * Sensibilidad del Slider
             factor_subida = (1.2 - elas) * 0.25 * sensibilidad
             precio_teorico = precio * (1 + factor_subida)
             precio_final = ajustar_a_psicologico(precio_teorico)
             
-            # Impacto: (Nuevo Precio - Viejo Precio) * (Volumen Ajustado levemente)
             nuevo_vol = vol * (1 - (factor_subida * 0.5)) 
             ganancia = (precio_final * nuevo_vol) - (precio * vol)
             
@@ -131,12 +133,10 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
         
         return 0, precio, "✅ CORRECTO"
 
-    # Aplicamos la lógica fila por fila
     resultados = df.apply(calcular_estrategia, axis=1)
     
-    # Desempaquetamos resultados
     df['dinero_mesa'] = [x[0] for x in resultados]
-    df['precio_objetivo_interno'] = [x[1] for x in resultados] # Este es el valor secreto
+    df['precio_objetivo_interno'] = [x[1] for x in resultados] 
     df['estado'] = [x[2] for x in resultados]
     
     # Preparamos DF visual estandarizado
@@ -167,14 +167,12 @@ with st.sidebar:
     
     # --- TRUCO: MODO ADMIN OCULTO ---
     st.markdown("---")
-    # Usamos un expander para que no sea obvio para el cliente
     with st.expander("Zona Admin (Solo Eunoia)"):
         modo_admin = st.checkbox("Mostrar Precios Reales", value=False)
         st.caption("Activa esto para ver la solución durante la demo.")
 
 # --- 5. INTERFAZ: CUERPO PRINCIPAL ---
 
-# Intentamos poner el banner, si falla no rompe la app
 try:
     st.image("https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/banner_redes.png", use_container_width=True)
 except:
@@ -184,7 +182,7 @@ st.title("💎 Auditoría de Estrategia de Precios")
 st.markdown("**Diagnóstico de Elasticidad y Captura de Valor Inmediato.**")
 
 # --- CARGA DE DATOS ---
-df_final = pd.DataFrame()
+df_final = None # Inicializamos como None para el chequeo de error
 error_msg = None
 
 if modo_entrada == "🎲 Simulación (Demo)":
@@ -207,7 +205,6 @@ elif modo_entrada == "📋 Pegar desde Excel":
     texto = st.text_area("Pegar datos (Ctrl+V):", height=150)
     if texto:
         try:
-            # Detecta si es tab (Excel) o coma (CSV)
             sep = '\t' if '\t' in texto else ','
             df_raw = pd.read_csv(StringIO(texto), sep=sep)
             df_final, error_msg = procesar_datos_pricing(df_raw, sensibilidad)
@@ -226,8 +223,9 @@ elif modo_entrada == "📂 Subir Archivo":
         except Exception as e:
             st.error(f"Error leyendo archivo: {e}")
 
-# --- DASHBOARD DE RESULTADOS ---
-if not df_final.empty and error_msg is None:
+# --- DASHBOARD DE RESULTADOS (VERIFICACIÓN CRÍTICA CORREGIDA) ---
+# Verificamos si df_final NO es None, SI tiene contenido, y NO hay mensaje de error
+if df_final is not None and not df_final.empty and error_msg is None:
     
     # Cálculos Globales
     dinero_mesa = df_final['dinero_mesa'].sum()
@@ -245,8 +243,6 @@ if not df_final.empty and error_msg is None:
     
     # 2. GRÁFICO DE DISPERSIÓN (EL MAPA DEL TESORO)
     st.subheader("📍 Mapa de Oportunidad de Precios")
-    st.caption("Los puntos **verdes** son productos donde el cliente aceptaría pagar más (Precio Psicológico), pero tu precio actual es bajo.")
-    
     fig = px.scatter(
         df_final, 
         x="PRECIO_VISUAL", 
@@ -268,28 +264,22 @@ if not df_final.empty and error_msg is None:
     col_tabla, col_cta = st.columns([3, 1])
     
     with col_tabla:
-        # Filtramos solo lo interesante
         df_show = df_final[df_final['estado'] == '⚠️ SUBVALUADO'].sort_values(by='dinero_mesa', ascending=False).head(15).copy()
         
-        # Formateamos valores visuales
         df_show['Precio Actual'] = df_show['PRECIO_VISUAL'].apply(lambda x: f"${x:,.2f}")
         df_show['Ganancia Extra'] = df_show['dinero_mesa'].apply(lambda x: f"+${x:,.2f}")
         
         # --- LÓGICA DE CENSURA ---
         if modo_admin:
-            # SI SOY YO (ADMIN): Muestro el precio calculado
             df_show['Precio Sugerido IA'] = df_show['precio_objetivo_interno'].apply(lambda x: f"${x:.2f}")
             st.success("🔓 MODO ADMIN ACTIVADO: Precios visibles.")
         else:
-            # SI ES EL CLIENTE: Muestro candado
             df_show['Precio Sugerido IA'] = "🔒 BLOCKED"
             
-        # Mostramos la tabla limpia
         st.table(df_show[['SKU_VISUAL', 'Precio Actual', 'Precio Sugerido IA', 'Ganancia Extra']])
         
     with col_cta:
         st.markdown("<br>", unsafe_allow_html=True)
-        # Caja de Venta
         st.markdown(f"""
             <div class="locked-box">
                 <h3 style="color: #0080cd; margin:0;">Recupera tus ${dinero_mesa:,.0f}</h3>
@@ -304,4 +294,5 @@ if not df_final.empty and error_msg is None:
         """, unsafe_allow_html=True)
 
 elif error_msg:
+    # Muestra el error capturado por procesar_datos_pricing
     st.error(error_msg)
