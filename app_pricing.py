@@ -88,19 +88,13 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
     df_temp = df.copy()
     df_temp.columns = [str(c).strip().lower() for c in df_temp.columns]
     
-    # --- 🛠️ DETECCIÓN DE COLUMNAS MEJORADA ---
-    # Precio: OK (mantiene 'precio', 'venta')
     col_precio = next((c for c in df_temp.columns if 'precio' in c or 'pvp' in c or 'venta' in c), None)
-    
-    # Volumen: AÑADIMOS 'anuales' y 'ventas' (para capturar 'Ventas Anuales')
     col_volumen = next((c for c in df_temp.columns if 'cant' in c or 'volumen' in c or 'unid' in c or 'rotacion' in c or 'anuales' in c or 'ventas' in c), None)
-
     col_sku = next((c for c in df_temp.columns if 'sku' in c or 'prod' in c or 'cod' in c or 'ref' in c), 'sku_generado')
     
     if not col_precio or not col_volumen:
         return None, f"❌ Error: No encuentro columnas de 'Precio' o 'Cantidad'. Las columnas detectadas son: {list(df.columns)}"
 
-    # C. Motor de Elasticidad (Simulación Consultiva)
     if 'elasticidad' not in df_temp.columns:
         df_temp['elasticidad_sim'] = np.random.uniform(0.6, 2.5, size=len(df_temp))
     
@@ -113,7 +107,11 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
             
         elas = row.get('elasticidad_sim', 1.5)
         
+        accion_label = "MANTENER"
+        precio_final = precio
+        
         if elas < 1.0:
+            accion_label = "SUBIR PRECIO"
             factor_subida = (1.2 - elas) * 0.25 * sensibilidad
             precio_teorico = precio * (1 + factor_subida)
             precio_final = ajustar_a_psicologico(precio_teorico)
@@ -121,9 +119,16 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
             nuevo_vol = vol * (1 - (factor_subida * 0.5)) 
             ganancia = (precio_final * nuevo_vol) - (precio * vol)
             
-            return (ganancia if ganancia > 0 else 0), precio_final, "⚠️ SUBVALUADO"
+            return (ganancia if ganancia > 0 else 0), precio_final, f"⚠️ {accion_label}"
         
-        return 0, precio, "✅ CORRECTO"
+        elif elas > 2.0:
+            accion_label = "BAJAR PRECIO"
+            precio_teorico = precio * 0.95
+            precio_final = ajustar_a_psicologico(precio_teorico)
+            
+            return 0, precio_final, f"⬇️ {accion_label}"
+            
+        return 0, precio, "✅ MANTENER"
 
     resultados = df_temp.apply(calcular_estrategia, axis=1)
     
@@ -213,21 +218,19 @@ elif modo_entrada == "📂 Subir Archivo":
 
 
 # --- DASHBOARD DE RESULTADOS (VERIFICACIÓN CRÍTICA) ---
-# Si hay error y el DataFrame base existe, muestra el diagnóstico
+
 if error_msg and "❌ Error:" in error_msg:
     st.error(error_msg)
     if df_raw is not None and not df_raw.empty:
         st.warning("Diagnóstico: El problema es el nombre de las columnas. Asegúrate de que contengan estas palabras (sin tildes) en los encabezados:")
-        # Solo mostramos los encabezados si hay datos
         st.markdown(f"**Encabezados detectados:** `{list(df_raw.columns)}`")
         st.markdown("Necesitas que uno contenga *precio*/*venta*/*pvp* y otro *cant*/*volumen*/*unidades*/*anuales*.")
-
 
 elif df_final is not None and not df_final.empty: 
     
     # Cálculos Globales
     dinero_mesa = df_final['dinero_mesa'].sum()
-    skus_afectados = df_final[df_final['estado'] == '⚠️ SUBVALUADO'].shape[0]
+    skus_afectados = df_final[df_final['estado'] != '✅ MANTENER'].shape[0]
     venta_total = (df_final['PRECIO_VISUAL'] * df_final['VOLUMEN_VISUAL']).sum()
     impacto_pct = (dinero_mesa / venta_total) * 100 if venta_total > 0 else 0
     
@@ -236,56 +239,11 @@ elif df_final is not None and not df_final.empty:
     # 1. KPIs DE ALTO IMPACTO
     c1, c2, c3 = st.columns(3)
     c1.metric("Dinero 'Sobre la Mesa'", f"${dinero_mesa:,.0f}", delta="Oportunidad Anual")
-    c2.metric("Productos Mal Preciados", f"{skus_afectados} SKUs", delta="Requieren Ajuste", delta_color="inverse")
+    c2.metric("Productos a Optimizar", f"{skus_afectados} SKUs", delta="Requieren Intervención", delta_color="inverse")
     c3.metric("Impacto Directo EBITDA", f"+{impacto_pct:.1f}%", delta="Proyección")
     
     # 2. GRÁFICO DE DISPERSIÓN (EL MAPA DEL TESORO)
     st.subheader("📍 Mapa de Oportunidad de Precios")
     fig = px.scatter(
         df_final, 
-        x="PRECIO_VISUAL", 
-        y="VOLUMEN_VISUAL", 
-        color="estado",
-        size="dinero_mesa",
-        color_discrete_map={'⚠️ SUBVALUADO': '#00c853', '✅ CORRECTO': '#444'},
-        hover_data=["SKU_VISUAL"],
-        log_x=True, log_y=True,
-        labels={"PRECIO_VISUAL": "Precio Actual ($)", "VOLUMEN_VISUAL": "Volumen de Venta"},
-        height=500
-    )
-    fig.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(255,255,255,0.05)')
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # 3. LA TABLA (CENSURADA O ABIERTA SEGÚN ADMIN)
-    st.subheader("🔓 Detalle de Acciones Sugeridas (Top 15)")
-    
-    col_tabla, col_cta = st.columns([3, 1])
-    
-    with col_tabla:
-        df_show = df_final[df_final['estado'] == '⚠️ SUBVALUADO'].sort_values(by='dinero_mesa', ascending=False).head(15).copy()
-        
-        df_show['Precio Actual'] = df_show['PRECIO_VISUAL'].apply(lambda x: f"${x:,.2f}")
-        df_show['Ganancia Extra'] = df_show['dinero_mesa'].apply(lambda x: f"+${x:,.2f}")
-        
-        if modo_admin:
-            df_show['Precio Sugerido IA'] = df_show['precio_objetivo_interno'].apply(lambda x: f"${x:.2f}")
-            st.success("🔓 MODO ADMIN ACTIVADO: Precios visibles.")
-        else:
-            df_show['Precio Sugerido IA'] = "🔒 BLOCKED"
-            
-        st.table(df_show[['SKU_VISUAL', 'Precio Actual', 'Precio Sugerido IA', 'Ganancia Extra']])
-        
-    with col_cta:
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown(f"""
-            <div class="locked-box">
-                <h3 style="color: #0080cd; margin:0;">Recupera tus ${dinero_mesa:,.0f}</h3>
-                <p style="font-size: 0.9rem; color: #ccc; margin-top: 10px;">
-                    El algoritmo ya calculó los <b>Precios Psicológicos</b> exactos (.99 / .95) para estos {skus_afectados} productos.
-                </p>
-                <br>
-                <a href="https://wa.me/593983959867?text=Hola,%20vi%20la%20simulación%20de%20precios%20y%20quiero%20el%20reporte%20desbloqueado." target="_blank" class="cta-button">
-                    SOLICITAR INFORME
-                </a>
-            </div>
-        """, unsafe_allow_html=True)
+        x="PRECIO_VISUAL",
