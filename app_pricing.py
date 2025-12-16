@@ -287,31 +287,31 @@ elif df_final is not None and not df_final.empty:
     with col_tabla:
         df_show = df_final[df_final['estado'] != '✅ MANTENER'].sort_values(by='dinero_mesa', ascending=False).head(15).copy()
         
-        # Formateo de precio actual
+        # Formato de columnas de valor y acción
         df_show['Precio Actual'] = df_show['PRECIO_VISUAL'].apply(lambda x: f"${x:,.2f}")
-        
-        # Columna de Ganancia Extra (para mostrar el valor en modo Admin o BLOCKED en modo Cliente)
+        df_show['Precio Sugerido'] = df_show['precio_objetivo_interno'].apply(lambda x: f"${x:.2f}")
         df_show['Ganancia Extra ($)'] = df_show['dinero_mesa'].apply(lambda x: f"+${x:,.2f}")
         
+        # Columna de Acción (Extraemos el texto sin emojis)
+        df_show['Acción Sugerida'] = df_show['estado'].str.replace('⚠️ ', '').str.replace('⬇️ ', '')
+        
         # Nombre de la columna de acción SOLICITADO
-        COL_ACCION_NOMBRE = 'Acción Sugerida (Subir Precio / Bajar Precio)'
+        COL_ACCION_NOMBRE_LARGO = 'Acción Sugerida (Subir Precio / Bajar Precio)'
+        df_show = df_show.rename(columns={'Acción Sugerida': COL_ACCION_NOMBRE_LARGO})
         
         if modo_admin:
             # ADMIN: Mostrar datos reales
-            df_show[COL_ACCION_NOMBRE] = df_show['estado'].str.replace('⚠️ ', '').str.replace('⬇️ ', '')
-            df_show['Precio Sugerido'] = df_show['precio_objetivo_interno'].apply(lambda x: f"${x:.2f}")
-            st.success("🔓 MODO ADMIN ACTIVADO: Precios visibles.")
+            st.success("🔓 MODO ADMIN ACTIVADO: Acciones visibles.")
         else:
-            # CLIENTE: Mostrar la acción (SUBIR/BAJAR) y BLOQUEAR TODA LA INFORMACIÓN SENSIBLE
-            # Extraemos la acción (ej: 'SUBIR PRECIO')
-            df_show[COL_ACCION_NOMBRE] = df_show['estado'].str.replace('⚠️ ', '').str.replace('⬇️ ', '')
+            # CLIENTE: BLOQUEO CRÍTICO - Invertimos la lógica
+            # Ganancia Extra y Precio Sugerido DEBEN ser visibles
+            # La Acción Sugerida DEBE ser BLOCKED
             
-            # Bloqueo TOTAL de las columnas de precio sugerido y ganancia
-            df_show['Precio Sugerido'] = "🔒 BLOCKED"
-            df_show['Ganancia Extra ($)'] = "🔒 BLOCKED"
+            df_show[COL_ACCION_NOMBRE_LARGO] = "🔒 BLOCKED"
+            # Las columnas de precio sugerido y ganancia se mantienen visibles para el cliente
             
         # Tabla Final (Orden de Columnas)
-        st.table(df_show[['SKU_VISUAL', 'Precio Actual', COL_ACCION_NOMBRE, 'Precio Sugerido', 'Ganancia Extra ($)']])
+        st.table(df_show[['SKU_VISUAL', 'Precio Actual', COL_ACCION_NOMBRE_LARGO, 'Precio Sugerido', 'Ganancia Extra ($)']])
         
     with col_cta:
         st.markdown("<br>", unsafe_allow_html=True)
