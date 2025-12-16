@@ -287,13 +287,13 @@ elif df_final is not None and not df_final.empty:
     with col_tabla:
         df_show = df_final[df_final['estado'] != '✅ MANTENER'].sort_values(by='dinero_mesa', ascending=False).head(15).copy()
         
-        # Formateo
+        # Formateo de precio actual
         df_show['Precio Actual'] = df_show['PRECIO_VISUAL'].apply(lambda x: f"${x:,.2f}")
         
         # Columna de Ganancia Extra (para mostrar el valor en modo Admin o BLOCKED en modo Cliente)
         df_show['Ganancia Extra ($)'] = df_show['dinero_mesa'].apply(lambda x: f"+${x:,.2f}")
         
-        # Nombre de la columna de acción según el requerimiento del usuario
+        # Nombre de la columna de acción SOLICITADO
         COL_ACCION_NOMBRE = 'Acción Sugerida (Subir Precio / Bajar Precio)'
         
         if modo_admin:
@@ -302,8 +302,9 @@ elif df_final is not None and not df_final.empty:
             df_show['Precio Sugerido'] = df_show['precio_objetivo_interno'].apply(lambda x: f"${x:.2f}")
             st.success("🔓 MODO ADMIN ACTIVADO: Precios visibles.")
         else:
-            # CLIENTE: Mostrar la acción (Subir/Bajar) y BLOQUEAR TODA LA INFORMACIÓN SENSIBLE
-            df_show[COL_ACCION_NOMBRE] = df_show['estado'].apply(lambda x: x.split(' ')[1])
+            # CLIENTE: Mostrar la acción (SUBIR/BAJAR) y BLOQUEAR TODA LA INFORMACIÓN SENSIBLE
+            # Extraemos la acción (ej: 'SUBIR PRECIO')
+            df_show[COL_ACCION_NOMBRE] = df_show['estado'].str.replace('⚠️ ', '').str.replace('⬇️ ', '')
             
             # Bloqueo TOTAL de las columnas de precio sugerido y ganancia
             df_show['Precio Sugerido'] = "🔒 BLOCKED"
