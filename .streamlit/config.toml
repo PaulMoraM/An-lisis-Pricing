@@ -1,0 +1,31 @@
+[theme]
+# --- IDENTIDAD VISUAL EUNOIA DIGITAL ---
+
+# Color Primario (Botones, Sliders, Inputs activos)
+# Usamos tu azul corporativo para resaltar las acciones.
+primaryColor = "#0080cd"
+
+# Color de Fondo (El lienzo principal)
+# Negro puro para el efecto "Dark Mode" premium.
+backgroundColor = "#000000"
+
+# Color de Fondo de la Barra Lateral
+# Un gris muy oscuro (#111111) para diferenciar sutilmente el menú.
+secondaryBackgroundColor = "#111111"
+
+# Color del Texto
+# Blanco puro para máximo contraste sobre el negro.
+textColor = "#ffffff"
+
+# Tipografía
+font = "sans serif"
+
+[server]
+# Configuración técnica para que la app arranque sin abrir ventanas extra
+headless = true
+enableCORS = false
+
+[client]
+# Oculta mensajes de error técnicos a los usuarios finales (más profesional)
+showErrorDetails = false
+toolbarMode = "minimal"
