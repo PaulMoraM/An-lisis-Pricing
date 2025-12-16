@@ -4,7 +4,7 @@ import numpy as np
 import plotly.express as px
 from io import StringIO
 import random
-# Intentamos importar Faker (para simulación). Si si, usamos un fallback.
+# Intentamos importar Faker (para simulación). Si falla en el servidor, usamos un fallback.
 try:
     from faker import Faker
 except ImportError:
@@ -161,11 +161,11 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
 
 # --- 4. INTERFAZ: BARRA LATERAL (CONFIGURACIÓN) ---
 with st.sidebar:
-    # --- APLICACIÓN DEL FONDO BLANCO AL LOGO ---
+    # --- APLICACIÓN DEL FONDO BLANCO AL LOGO (Solución Robusta) ---
     st.markdown('<div class="eunoia-logo-box">', unsafe_allow_html=True)
     st.image("https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/eunoia-digital-logo.png", use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    # ------------------------------------------
+    # -----------------------------------------------------------
     
     st.header("🎛️ Panel de Control")
     
