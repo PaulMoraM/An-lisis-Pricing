@@ -289,21 +289,28 @@ elif df_final is not None and not df_final.empty:
         
         # Formateo
         df_show['Precio Actual'] = df_show['PRECIO_VISUAL'].apply(lambda x: f"${x:,.2f}")
-        df_show['Impacto Profit ($)'] = df_show['dinero_mesa'].apply(lambda x: f"+${x:,.2f}")
         
-        # --- LÓGICA DE CENSURA Y RENOMBRAMIENTO ---
+        # Columna de Ganancia Extra (para mostrar el valor en modo Admin o BLOCKED en modo Cliente)
+        df_show['Ganancia Extra ($)'] = df_show['dinero_mesa'].apply(lambda x: f"+${x:,.2f}")
+        
+        # Nombre de la columna de acción según el requerimiento del usuario
+        COL_ACCION_NOMBRE = 'Acción Sugerida (Subir Precio / Bajar Precio)'
+        
         if modo_admin:
             # ADMIN: Mostrar datos reales
-            df_show['Acción Sugerida'] = df_show['estado'].str.replace('⚠️ ', '').str.replace('⬇️ ', '')
+            df_show[COL_ACCION_NOMBRE] = df_show['estado'].str.replace('⚠️ ', '').str.replace('⬇️ ', '')
             df_show['Precio Sugerido'] = df_show['precio_objetivo_interno'].apply(lambda x: f"${x:.2f}")
             st.success("🔓 MODO ADMIN ACTIVADO: Precios visibles.")
         else:
-            # CLIENTE: Mostrar la acción (SUBIR/BAJAR) y bloquear el precio.
-            df_show['Acción Sugerida'] = df_show['estado'].apply(lambda x: x.split(' ')[1]) 
+            # CLIENTE: Mostrar la acción (Subir/Bajar) y BLOQUEAR TODA LA INFORMACIÓN SENSIBLE
+            df_show[COL_ACCION_NOMBRE] = df_show['estado'].apply(lambda x: x.split(' ')[1])
+            
+            # Bloqueo TOTAL de las columnas de precio sugerido y ganancia
             df_show['Precio Sugerido'] = "🔒 BLOCKED"
+            df_show['Ganancia Extra ($)'] = "🔒 BLOCKED"
             
         # Tabla Final (Orden de Columnas)
-        st.table(df_show[['SKU_VISUAL', 'Precio Actual', 'Acción Sugerida', 'Precio Sugerido', 'Impacto Profit ($)']])
+        st.table(df_show[['SKU_VISUAL', 'Precio Actual', COL_ACCION_NOMBRE, 'Precio Sugerido', 'Ganancia Extra ($)']])
         
     with col_cta:
         st.markdown("<br>", unsafe_allow_html=True)
