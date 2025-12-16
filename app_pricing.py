@@ -12,6 +12,9 @@ except ImportError:
         def __init__(self): pass
         def catch_phrase(self): return "Producto Genérico"
 
+# URL del Logo (Para el bloque HTML robusto)
+URL_LOGO = "https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/eunoia-digital-logo.png"
+
 # --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
     page_title="Eunoia Pricing Audit",
@@ -20,8 +23,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. ESTILOS CSS (BRANDING EUNOIA Y SOLUCIÓN DE LOGO) ---
-# Usamos un estilo más fuerte para forzar el fondo blanco en la sidebar.
+# --- 2. ESTILOS CSS (BRANDING EUNOIA) ---
 st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700&display=swap');
@@ -33,19 +35,6 @@ st.markdown("""
             color: #0080cd; /* Azul Eunoia */
             font-size: 2.2rem;
             font-weight: 700;
-        }
-        
-        /* Contenedor del Logo con fondo blanco forzado */
-        .eunoia-logo-box {
-            background-color: white !important;
-            padding: 10px; 
-            border-radius: 5px;
-            margin-bottom: 20px; 
-        }
-
-        /* Ajuste de logo en la sidebar (forzar ancho completo) */
-        [data-testid="stSidebar"] img {
-            max-width: 100%;
         }
         
         /* Botón CTA Principal (Verde Dinero) */
@@ -161,11 +150,20 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
 
 # --- 4. INTERFAZ: BARRA LATERAL (CONFIGURACIÓN) ---
 with st.sidebar:
-    # --- APLICACIÓN DEL FONDO BLANCO AL LOGO (Solución Robusta) ---
-    st.markdown('<div class="eunoia-logo-box">', unsafe_allow_html=True)
-    st.image("https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/eunoia-digital-logo.png", use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-    # -----------------------------------------------------------
+    # --- LOGO CON FONDO BLANCO (SOLUCIÓN FUNCIONAL) ---
+    st.markdown(f"""
+        <div style="
+            background-color: #ffffff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(255,255,255,0.1);
+        ">
+            <img src="{URL_LOGO}" style="width: 100%; height: auto; display: block;">
+        </div>
+    """, unsafe_allow_html=True)
+    # ---------------------------------------------
     
     st.header("🎛️ Panel de Control")
     
@@ -301,7 +299,6 @@ elif df_final is not None and not df_final.empty:
             st.success("🔓 MODO ADMIN ACTIVADO: Precios visibles.")
         else:
             # CLIENTE: Mostrar la acción (SUBIR/BAJAR) y bloquear el precio.
-            # Extrae solo la palabra "SUBIR" o "BAJAR"
             df_show['Acción Sugerida'] = df_show['estado'].apply(lambda x: x.split(' ')[1]) 
             df_show['Precio Sugerido'] = "🔒 BLOCKED"
             
