@@ -64,10 +64,8 @@ st.markdown("""
             color: white !important;
         }
         
-        /* Ajuste de tablas para que se vean elegantes */
         .stDataFrame { font-size: 0.9rem; }
         
-        /* Contenedor del mensaje de bloqueo */
         .locked-box {
             background-color: #1e1e1e; 
             padding: 20px; 
@@ -79,7 +77,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 3. LÓGICA DE NEGOCIO (EL CEREBRO) ---
-
 def ajustar_a_psicologico(precio):
     """Convierte 12.40 -> 12.90 para maximizar margen."""
     if pd.isna(precio): return 0
@@ -89,29 +86,24 @@ def ajustar_a_psicologico(precio):
     elif decimal < 0.85: return entero + 0.90
     else: return entero + 0.99
 
+@st.cache_data
 def procesar_datos_pricing(df, sensibilidad=1.0):
     
-    # Manejar caso de DataFrame inicial vacío
     if df is None or df.empty:
         return None, "No hay datos para procesar. Por favor, carga o pega la información."
         
-    # A. Limpieza de nombres de columnas
     df.columns = [str(c).strip().lower() for c in df.columns]
     
-    # B. Detección inteligente de columnas
     col_precio = next((c for c in df.columns if 'precio' in c or 'pvp' in c or 'venta' in c), None)
     col_volumen = next((c for c in df.columns if 'cant' in c or 'vol' in c or 'unid' in c or 'rotacion' in c), None)
     col_sku = next((c for c in df.columns if 'sku' in c or 'prod' in c or 'cod' in c or 'ref' in c), 'sku_generado')
     
     if not col_precio or not col_volumen:
-        # RETORNA NONE, que es lo que causaba el error
-        return None, "❌ Error: No encuentro columnas de 'Precio' o 'Cantidad'. Revisa los encabezados de tu archivo."
+        return None, "❌ Error: No encuentro columnas de 'Precio' o 'Cantidad'. Revisa los encabezados."
 
-    # C. Motor de Elasticidad (Simulación Consultiva)
     if 'elasticidad' not in df.columns:
         df['elasticidad_sim'] = np.random.uniform(0.6, 2.5, size=len(df))
     
-    # D. Cálculo de Oportunidad (Dinero en la Mesa)
     def calcular_estrategia(row):
         try:
             precio = float(row[col_precio])
@@ -139,13 +131,8 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
     df['precio_objetivo_interno'] = [x[1] for x in resultados] 
     df['estado'] = [x[2] for x in resultados]
     
-    # Preparamos DF visual estandarizado
     df_out = df.copy()
-    if col_sku == 'sku_generado':
-        df_out['SKU_VISUAL'] = [f"REF-{i}" for i in range(len(df))]
-    else:
-        df_out['SKU_VISUAL'] = df[col_sku]
-        
+    df_out['SKU_VISUAL'] = df[col_sku] if col_sku != 'sku_generado' else [f"REF-{i}" for i in range(len(df))]
     df_out['PRECIO_VISUAL'] = df[col_precio]
     df_out['VOLUMEN_VISUAL'] = df[col_volumen]
     
@@ -165,14 +152,12 @@ with st.sidebar:
     st.subheader("⚙️ Calibración")
     sensibilidad = st.slider("Agresividad de Estrategia", 0.5, 2.0, 1.0, 0.1, help="Mayor agresividad busca márgenes más altos en productos elásticos.")
     
-    # --- TRUCO: MODO ADMIN OCULTO ---
     st.markdown("---")
     with st.expander("Zona Admin (Solo Eunoia)"):
         modo_admin = st.checkbox("Mostrar Precios Reales", value=False)
         st.caption("Activa esto para ver la solución durante la demo.")
 
 # --- 5. INTERFAZ: CUERPO PRINCIPAL ---
-
 try:
     st.image("https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/banner_redes.png", use_container_width=True)
 except:
@@ -182,13 +167,11 @@ st.title("💎 Auditoría de Estrategia de Precios")
 st.markdown("**Diagnóstico de Elasticidad y Captura de Valor Inmediato.**")
 
 # --- CARGA DE DATOS ---
-df_final = None # Inicializamos como None para el chequeo de error
+df_final = None 
 error_msg = None
 
 if modo_entrada == "🎲 Simulación (Demo)":
-    # Generar datos falsos robustos
     data = []
-    fake = Faker() if 'Faker' in globals() else None
     for _ in range(400):
         costo = random.uniform(10, 100)
         data.append({
@@ -209,7 +192,12 @@ elif modo_entrada == "📋 Pegar desde Excel":
             df_raw = pd.read_csv(StringIO(texto), sep=sep)
             df_final, error_msg = procesar_datos_pricing(df_raw, sensibilidad)
         except Exception as e:
-            st.error(f"Error interpretando datos: {e}")
+            # Captura y asigna la falla, reseteando df_final
+            error_msg = f"Error al leer/interpretar datos: {e}"
+            df_final = None 
+    else:
+        # Si el text area está vacío, no hay error, pero tampoco hay datos
+        df_final = None
 
 elif modo_entrada == "📂 Subir Archivo":
     file = st.file_uploader("Sube tu archivo Excel (.xlsx) o CSV", type=['xlsx', 'csv'])
@@ -221,11 +209,14 @@ elif modo_entrada == "📂 Subir Archivo":
                 df_raw = pd.read_excel(file)
             df_final, error_msg = procesar_datos_pricing(df_raw, sensibilidad)
         except Exception as e:
-            st.error(f"Error leyendo archivo: {e}")
+            error_msg = f"Error leyendo archivo: {e}"
+            df_final = None
+    else:
+        df_final = None
 
 # --- DASHBOARD DE RESULTADOS (VERIFICACIÓN CRÍTICA CORREGIDA) ---
-# Verificamos si df_final NO es None, SI tiene contenido, y NO hay mensaje de error
-if df_final is not None and not df_final.empty and error_msg is None:
+# Usamos un chequeo seguro: si df_final NO es None Y no está vacío.
+if df_final is not None and not df_final.empty: 
     
     # Cálculos Globales
     dinero_mesa = df_final['dinero_mesa'].sum()
@@ -294,5 +285,5 @@ if df_final is not None and not df_final.empty and error_msg is None:
         """, unsafe_allow_html=True)
 
 elif error_msg:
-    # Muestra el error capturado por procesar_datos_pricing
+    # Muestra el error si existe y df_final es None
     st.error(error_msg)
