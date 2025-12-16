@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Dec 16 13:04:49 2025
-
-@author: indu_analistanegocio
-"""
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -14,7 +7,6 @@ import random
 try:
     from faker import Faker
 except ImportError:
-    # Fallback simple si no está instalado faker en el servidor
     class Faker:
         def __init__(self): pass
         def catch_phrase(self): return "Producto Genérico"
@@ -41,7 +33,6 @@ st.markdown("""
             font-weight: 700;
         }
         
-        /* Botón CTA Principal (Verde Dinero) */
         .cta-button {
             display: block;
             width: 100%;
@@ -64,8 +55,6 @@ st.markdown("""
             color: white !important;
         }
         
-        .stDataFrame { font-size: 0.9rem; }
-        
         .locked-box {
             background-color: #1e1e1e; 
             padding: 20px; 
@@ -77,6 +66,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 3. LÓGICA DE NEGOCIO (EL CEREBRO) ---
+
 def ajustar_a_psicologico(precio):
     """Convierte 12.40 -> 12.90 para maximizar margen."""
     if pd.isna(precio): return 0
@@ -92,18 +82,23 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
     if df is None or df.empty:
         return None, "No hay datos para procesar. Por favor, carga o pega la información."
         
-    df.columns = [str(c).strip().lower() for c in df.columns]
+    df_temp = df.copy()
+    df_temp.columns = [str(c).strip().lower() for c in df_temp.columns]
     
-    col_precio = next((c for c in df.columns if 'precio' in c or 'pvp' in c or 'venta' in c), None)
-    col_volumen = next((c for c in df.columns if 'cant' in c or 'vol' in c or 'unid' in c or 'rotacion' in c), None)
-    col_sku = next((c for c in df.columns if 'sku' in c or 'prod' in c or 'cod' in c or 'ref' in c), 'sku_generado')
+    # B. Detección inteligente de columnas
+    col_precio = next((c for c in df_temp.columns if 'precio' in c or 'pvp' in c or 'venta' in c), None)
+    col_volumen = next((c for c in df_temp.columns if 'cant' in c or 'vol' in c or 'unid' in c or 'rotacion' in c), None)
+    col_sku = next((c for c in df_temp.columns if 'sku' in c or 'prod' in c or 'cod' in c or 'ref' in c), 'sku_generado')
     
     if not col_precio or not col_volumen:
-        return None, "❌ Error: No encuentro columnas de 'Precio' o 'Cantidad'. Revisa los encabezados."
+        # Devuelve las columnas originales para el diagnóstico
+        return None, f"❌ Error: No encuentro columnas de 'Precio' o 'Cantidad'. Las columnas detectadas son: {list(df.columns)}"
 
-    if 'elasticidad' not in df.columns:
-        df['elasticidad_sim'] = np.random.uniform(0.6, 2.5, size=len(df))
+    # C. Motor de Elasticidad (Simulación Consultiva)
+    if 'elasticidad' not in df_temp.columns:
+        df_temp['elasticidad_sim'] = np.random.uniform(0.6, 2.5, size=len(df_temp))
     
+    # D. Cálculo de Oportunidad (Dinero en la Mesa)
     def calcular_estrategia(row):
         try:
             precio = float(row[col_precio])
@@ -125,16 +120,16 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
         
         return 0, precio, "✅ CORRECTO"
 
-    resultados = df.apply(calcular_estrategia, axis=1)
+    resultados = df_temp.apply(calcular_estrategia, axis=1)
     
-    df['dinero_mesa'] = [x[0] for x in resultados]
-    df['precio_objetivo_interno'] = [x[1] for x in resultados] 
-    df['estado'] = [x[2] for x in resultados]
+    df_temp['dinero_mesa'] = [x[0] for x in resultados]
+    df_temp['precio_objetivo_interno'] = [x[1] for x in resultados] 
+    df_temp['estado'] = [x[2] for x in resultados]
     
-    df_out = df.copy()
-    df_out['SKU_VISUAL'] = df[col_sku] if col_sku != 'sku_generado' else [f"REF-{i}" for i in range(len(df))]
-    df_out['PRECIO_VISUAL'] = df[col_precio]
-    df_out['VOLUMEN_VISUAL'] = df[col_volumen]
+    df_out = df_temp.copy()
+    df_out['SKU_VISUAL'] = df_temp[col_sku] if col_sku != 'sku_generado' else [f"REF-{i}" for i in range(len(df_temp))]
+    df_out['PRECIO_VISUAL'] = df_temp[col_precio]
+    df_out['VOLUMEN_VISUAL'] = df_temp[col_volumen]
     
     return df_out, None
 
@@ -169,6 +164,7 @@ st.markdown("**Diagnóstico de Elasticidad y Captura de Valor Inmediato.**")
 # --- CARGA DE DATOS ---
 df_final = None 
 error_msg = None
+df_raw = None # Variable para almacenar el DataFrame antes de procesar
 
 if modo_entrada == "🎲 Simulación (Demo)":
     data = []
@@ -192,11 +188,8 @@ elif modo_entrada == "📋 Pegar desde Excel":
             df_raw = pd.read_csv(StringIO(texto), sep=sep)
             df_final, error_msg = procesar_datos_pricing(df_raw, sensibilidad)
         except Exception as e:
-            # Captura y asigna la falla, reseteando df_final
-            error_msg = f"Error al leer/interpretar datos: {e}"
-            df_final = None 
+            error_msg = f"Error al leer/interpretar los datos pegados: {e}"
     else:
-        # Si el text area está vacío, no hay error, pero tampoco hay datos
         df_final = None
 
 elif modo_entrada == "📂 Subir Archivo":
@@ -210,13 +203,20 @@ elif modo_entrada == "📂 Subir Archivo":
             df_final, error_msg = procesar_datos_pricing(df_raw, sensibilidad)
         except Exception as e:
             error_msg = f"Error leyendo archivo: {e}"
-            df_final = None
     else:
         df_final = None
 
-# --- DASHBOARD DE RESULTADOS (VERIFICACIÓN CRÍTICA CORREGIDA) ---
-# Usamos un chequeo seguro: si df_final NO es None Y no está vacío.
-if df_final is not None and not df_final.empty: 
+
+# --- DASHBOARD DE RESULTADOS (VERIFICACIÓN CRÍTICA) ---
+if error_msg and "❌ Error:" in error_msg:
+    st.error(error_msg)
+    if df_raw is not None and not df_raw.empty:
+        st.warning("Diagnóstico: El problema es el nombre de las columnas. Asegúrate de que contengan estas palabras (sin tildes) en los encabezados:")
+        st.markdown(f"**Encabezados detectados:** `{list(df_raw.columns)}`")
+        st.markdown("Necesitas que uno contenga *precio*/*venta*/*pvp* y otro *cant*/*volumen*/*unidades*.")
+
+
+elif df_final is not None and not df_final.empty: 
     
     # Cálculos Globales
     dinero_mesa = df_final['dinero_mesa'].sum()
@@ -260,7 +260,6 @@ if df_final is not None and not df_final.empty:
         df_show['Precio Actual'] = df_show['PRECIO_VISUAL'].apply(lambda x: f"${x:,.2f}")
         df_show['Ganancia Extra'] = df_show['dinero_mesa'].apply(lambda x: f"+${x:,.2f}")
         
-        # --- LÓGICA DE CENSURA ---
         if modo_admin:
             df_show['Precio Sugerido IA'] = df_show['precio_objetivo_interno'].apply(lambda x: f"${x:.2f}")
             st.success("🔓 MODO ADMIN ACTIVADO: Precios visibles.")
@@ -283,7 +282,3 @@ if df_final is not None and not df_final.empty:
                 </a>
             </div>
         """, unsafe_allow_html=True)
-
-elif error_msg:
-    # Muestra el error si existe y df_final es None
-    st.error(error_msg)
