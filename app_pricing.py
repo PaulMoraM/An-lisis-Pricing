@@ -298,44 +298,39 @@ elif df_final is not None and not df_final.empty:
         df_show['Acción Sugerida Detalle'] = df_show['estado'].str.replace('⚠️ ', '').str.replace('⬇️ ', '')
         
         # --------------------------------------------------------------------------
-        # OPTIMIZACIÓN DEL ENCABEZADO LARGO
+        # OPTIMIZACIÓN DEL ENCABEZADO Y BLOQUEO CRÍTICO
         # --------------------------------------------------------------------------
-        # Simula el encabezado largo sobre la tabla
-        st.markdown("""
-            <style>
-                /* Estilo para reducir el padding de la tabla */
-                [data-testid="stDataFrame"] .st-bd {
-                    padding: 0px 5px !important; 
-                }
-            </style>
-        """, unsafe_allow_html=True)
 
-        st.markdown(
-            """
-            <div style="text-align: left; margin-bottom: -15px;">
-                <span style="font-size: 0.9em; color: #aaa;">
-                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                    Subir Precio / Bajar Precio
-                </span>
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
+        # Renombrar la columna de acción para el encabezado corto
+        df_output = df_show.rename(columns={'Acción Sugerida Detalle': 'Acción Sugerida'})
 
         if modo_admin:
             # ADMIN: Mostrar datos reales
             st.success("🔓 MODO ADMIN ACTIVADO: BLOQUEO DESACTIVADO.")
         else:
-            # CLIENTE: APLICAR BLOQUEO CRÍTICO
-            # 1. Bloquear PRECIO SUGERIDO
-            df_show['Precio Sugerido'] = "🔒 BLOCKED"
-            # 2. Bloquear ACCIÓN SUGERIDA
-            df_show['Acción Sugerida Detalle'] = "🔒 BLOCKED"
-            # 3. Ganancia Extra y Precio Actual se mantienen VISIBLES
+            # CLIENTE: APLICAR BLOQUEO CRÍTICO (Precio Sugerido y Acción Sugerida)
             
-        # Tabla Final (Orden de Columnas y Renombramiento Final)
-        df_output = df_show.rename(columns={'Acción Sugerida Detalle': 'Acción Sugerida'})
+            # 1. Bloquear PRECIO SUGERIDO
+            df_output['Precio Sugerido'] = "🔒 BLOCKED"
+            # 2. Bloquear ACCIÓN SUGERIDA
+            df_output['Acción Sugerida'] = "🔒 BLOCKED"
+            # 3. Ganancia Extra y Precio Actual se mantienen VISIBLES (CORREGIDO)
+            
+        # Tabla Final (Orden de Columnas y Encabezado de 2 líneas simulado)
+        
+        # Simula el subtítulo largo sobre la tabla
+        st.markdown(
+            """
+            <div style="text-align: left; margin-bottom: -15px;">
+                <span style="font-size: 0.85em; color: #777;">
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    &nbsp;&nbsp;&nbsp;&nbsp;
+                    (Subir Precio / Bajar Precio)
+                </span>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
         
         st.table(df_output[['SKU_VISUAL', 'Precio Actual', 'Acción Sugerida', 'Precio Sugerido', 'Ganancia Extra ($)']])
         
