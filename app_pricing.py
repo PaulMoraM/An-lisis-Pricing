@@ -287,31 +287,57 @@ elif df_final is not None and not df_final.empty:
     with col_tabla:
         df_show = df_final[df_final['estado'] != '✅ MANTENER'].sort_values(by='dinero_mesa', ascending=False).head(15).copy()
         
-        # Formato de columnas de valor y acción
+        # --------------------------------------------------------------------------
+        # PREPARACIÓN DE COLUMNAS DE SALIDA
+        # --------------------------------------------------------------------------
         df_show['Precio Actual'] = df_show['PRECIO_VISUAL'].apply(lambda x: f"${x:,.2f}")
         df_show['Precio Sugerido'] = df_show['precio_objetivo_interno'].apply(lambda x: f"${x:.2f}")
         df_show['Ganancia Extra ($)'] = df_show['dinero_mesa'].apply(lambda x: f"+${x:,.2f}")
         
-        # Columna de Acción (Extraemos el texto sin emojis)
-        df_show['Acción Sugerida'] = df_show['estado'].str.replace('⚠️ ', '').str.replace('⬇️ ', '')
+        # Columna de Acción sin emojis
+        df_show['Acción Sugerida Detalle'] = df_show['estado'].str.replace('⚠️ ', '').str.replace('⬇️ ', '')
         
-        # Nombre de la columna de acción SOLICITADO
-        COL_ACCION_NOMBRE_LARGO = 'Acción Sugerida (Subir Precio / Bajar Precio)'
-        df_show = df_show.rename(columns={'Acción Sugerida': COL_ACCION_NOMBRE_LARGO})
-        
+        # --------------------------------------------------------------------------
+        # OPTIMIZACIÓN DEL ENCABEZADO LARGO
+        # --------------------------------------------------------------------------
+        # Simula el encabezado largo sobre la tabla
+        st.markdown("""
+            <style>
+                /* Estilo para reducir el padding de la tabla */
+                [data-testid="stDataFrame"] .st-bd {
+                    padding: 0px 5px !important; 
+                }
+            </style>
+        """, unsafe_allow_html=True)
+
+        st.markdown(
+            """
+            <div style="text-align: left; margin-bottom: -15px;">
+                <span style="font-size: 0.9em; color: #aaa;">
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    Subir Precio / Bajar Precio
+                </span>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+
         if modo_admin:
             # ADMIN: Mostrar datos reales
-            st.success("🔓 MODO ADMIN ACTIVADO: Acciones visibles.")
+            st.success("🔓 MODO ADMIN ACTIVADO: BLOQUEO DESACTIVADO.")
         else:
-            # CLIENTE: BLOQUEO CRÍTICO - Invertimos la lógica
-            # Ganancia Extra y Precio Sugerido DEBEN ser visibles
-            # La Acción Sugerida DEBE ser BLOCKED
+            # CLIENTE: APLICAR BLOQUEO CRÍTICO
+            # 1. Bloquear PRECIO SUGERIDO
+            df_show['Precio Sugerido'] = "🔒 BLOCKED"
+            # 2. Bloquear ACCIÓN SUGERIDA
+            df_show['Acción Sugerida Detalle'] = "🔒 BLOCKED"
+            # 3. Ganancia Extra y Precio Actual se mantienen VISIBLES
             
-            df_show[COL_ACCION_NOMBRE_LARGO] = "🔒 BLOCKED"
-            # Las columnas de precio sugerido y ganancia se mantienen visibles para el cliente
-            
-        # Tabla Final (Orden de Columnas)
-        st.table(df_show[['SKU_VISUAL', 'Precio Actual', COL_ACCION_NOMBRE_LARGO, 'Precio Sugerido', 'Ganancia Extra ($)']])
+        # Tabla Final (Orden de Columnas y Renombramiento Final)
+        df_output = df_show.rename(columns={'Acción Sugerida Detalle': 'Acción Sugerida'})
+        
+        st.table(df_output[['SKU_VISUAL', 'Precio Actual', 'Acción Sugerida', 'Precio Sugerido', 'Ganancia Extra ($)']])
         
     with col_cta:
         st.markdown("<br>", unsafe_allow_html=True)
