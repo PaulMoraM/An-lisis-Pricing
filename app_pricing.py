@@ -33,6 +33,7 @@ st.markdown("""
             font-weight: 700;
         }
         
+        /* Botón CTA Principal (Verde Dinero) */
         .cta-button {
             display: block;
             width: 100%;
@@ -54,6 +55,8 @@ st.markdown("""
             box-shadow: 0 6px 12px rgba(0,200,83,0.4);
             color: white !important;
         }
+        
+        .stDataFrame { font-size: 0.9rem; }
         
         .locked-box {
             background-color: #1e1e1e; 
@@ -85,20 +88,22 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
     df_temp = df.copy()
     df_temp.columns = [str(c).strip().lower() for c in df_temp.columns]
     
-    # B. Detección inteligente de columnas
+    # --- 🛠️ DETECCIÓN DE COLUMNAS MEJORADA ---
+    # Precio: OK (mantiene 'precio', 'venta')
     col_precio = next((c for c in df_temp.columns if 'precio' in c or 'pvp' in c or 'venta' in c), None)
-    col_volumen = next((c for c in df_temp.columns if 'cant' in c or 'vol' in c or 'unid' in c or 'rotacion' in c), None)
+    
+    # Volumen: AÑADIMOS 'anuales' y 'ventas' (para capturar 'Ventas Anuales')
+    col_volumen = next((c for c in df_temp.columns if 'cant' in c or 'volumen' in c or 'unid' in c or 'rotacion' in c or 'anuales' in c or 'ventas' in c), None)
+
     col_sku = next((c for c in df_temp.columns if 'sku' in c or 'prod' in c or 'cod' in c or 'ref' in c), 'sku_generado')
     
     if not col_precio or not col_volumen:
-        # Devuelve las columnas originales para el diagnóstico
         return None, f"❌ Error: No encuentro columnas de 'Precio' o 'Cantidad'. Las columnas detectadas son: {list(df.columns)}"
 
     # C. Motor de Elasticidad (Simulación Consultiva)
     if 'elasticidad' not in df_temp.columns:
         df_temp['elasticidad_sim'] = np.random.uniform(0.6, 2.5, size=len(df_temp))
     
-    # D. Cálculo de Oportunidad (Dinero en la Mesa)
     def calcular_estrategia(row):
         try:
             precio = float(row[col_precio])
@@ -164,7 +169,7 @@ st.markdown("**Diagnóstico de Elasticidad y Captura de Valor Inmediato.**")
 # --- CARGA DE DATOS ---
 df_final = None 
 error_msg = None
-df_raw = None # Variable para almacenar el DataFrame antes de procesar
+df_raw = None
 
 if modo_entrada == "🎲 Simulación (Demo)":
     data = []
@@ -188,7 +193,7 @@ elif modo_entrada == "📋 Pegar desde Excel":
             df_raw = pd.read_csv(StringIO(texto), sep=sep)
             df_final, error_msg = procesar_datos_pricing(df_raw, sensibilidad)
         except Exception as e:
-            error_msg = f"Error al leer/interpretar los datos pegados: {e}"
+            error_msg = f"Error al leer/interpretar datos: {e}"
     else:
         df_final = None
 
@@ -208,12 +213,14 @@ elif modo_entrada == "📂 Subir Archivo":
 
 
 # --- DASHBOARD DE RESULTADOS (VERIFICACIÓN CRÍTICA) ---
+# Si hay error y el DataFrame base existe, muestra el diagnóstico
 if error_msg and "❌ Error:" in error_msg:
     st.error(error_msg)
     if df_raw is not None and not df_raw.empty:
         st.warning("Diagnóstico: El problema es el nombre de las columnas. Asegúrate de que contengan estas palabras (sin tildes) en los encabezados:")
+        # Solo mostramos los encabezados si hay datos
         st.markdown(f"**Encabezados detectados:** `{list(df_raw.columns)}`")
-        st.markdown("Necesitas que uno contenga *precio*/*venta*/*pvp* y otro *cant*/*volumen*/*unidades*.")
+        st.markdown("Necesitas que uno contenga *precio*/*venta*/*pvp* y otro *cant*/*volumen*/*unidades*/*anuales*.")
 
 
 elif df_final is not None and not df_final.empty: 
