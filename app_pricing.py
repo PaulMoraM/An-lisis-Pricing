@@ -4,7 +4,7 @@ import numpy as np
 import plotly.express as px
 from io import StringIO
 import random
-# Intentamos importar Faker (para simulación). Si falla en el servidor, usamos un fallback.
+# Intentamos importar Faker (para simulación). Si si, usamos un fallback.
 try:
     from faker import Faker
 except ImportError:
@@ -20,7 +20,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. ESTILOS CSS (BRANDING EUNOIA) ---
+# --- 2. ESTILOS CSS (BRANDING EUNOIA Y SOLUCIÓN DE LOGO) ---
+# Usamos un estilo más fuerte para forzar el fondo blanco en la sidebar.
 st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700&display=swap');
@@ -32,6 +33,19 @@ st.markdown("""
             color: #0080cd; /* Azul Eunoia */
             font-size: 2.2rem;
             font-weight: 700;
+        }
+        
+        /* Contenedor del Logo con fondo blanco forzado */
+        .eunoia-logo-box {
+            background-color: white !important;
+            padding: 10px; 
+            border-radius: 5px;
+            margin-bottom: 20px; 
+        }
+
+        /* Ajuste de logo en la sidebar (forzar ancho completo) */
+        [data-testid="stSidebar"] img {
+            max-width: 100%;
         }
         
         /* Botón CTA Principal (Verde Dinero) */
@@ -147,8 +161,8 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
 
 # --- 4. INTERFAZ: BARRA LATERAL (CONFIGURACIÓN) ---
 with st.sidebar:
-    # --- ARREGLO DEL LOGO CON FONDO BLANCO ---
-    st.markdown('<div style="background-color: white; padding: 10px; border-radius: 5px;">', unsafe_allow_html=True)
+    # --- APLICACIÓN DEL FONDO BLANCO AL LOGO ---
+    st.markdown('<div class="eunoia-logo-box">', unsafe_allow_html=True)
     st.image("https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/eunoia-digital-logo.png", use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
     # ------------------------------------------
