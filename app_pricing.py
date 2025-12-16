@@ -4,6 +4,7 @@ import numpy as np
 import plotly.express as px
 from io import StringIO
 import random
+# Intentamos importar Faker (para simulación). Si falla en el servidor, usamos un fallback.
 try:
     from faker import Faker
 except ImportError:
@@ -58,6 +59,7 @@ st.markdown("""
         
         .stDataFrame { font-size: 0.9rem; }
         
+        /* Contenedor del mensaje de bloqueo */
         .locked-box {
             background-color: #1e1e1e; 
             padding: 20px; 
@@ -71,7 +73,7 @@ st.markdown("""
 # --- 3. LÓGICA DE NEGOCIO (EL CEREBRO) ---
 
 def ajustar_a_psicologico(precio):
-    """Convierte 12.40 -> 12.90 para maximizar margen."""
+    """Convierte 12.40 -> 12.90 para maximizar margen (Precios Psicológicos)."""
     if pd.isna(precio): return 0
     entero = int(precio)
     decimal = precio - entero
@@ -86,15 +88,19 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
         return None, "No hay datos para procesar. Por favor, carga o pega la información."
         
     df_temp = df.copy()
+    # Limpieza de nombres de columna a minúsculas para facilitar la detección
     df_temp.columns = [str(c).strip().lower() for c in df_temp.columns]
     
+    # B. Detección inteligente de columnas
     col_precio = next((c for c in df_temp.columns if 'precio' in c or 'pvp' in c or 'venta' in c), None)
+    # Volumen: Ampliada para incluir 'anuales' y 'ventas' (Ventas Anuales)
     col_volumen = next((c for c in df_temp.columns if 'cant' in c or 'volumen' in c or 'unid' in c or 'rotacion' in c or 'anuales' in c or 'ventas' in c), None)
     col_sku = next((c for c in df_temp.columns if 'sku' in c or 'prod' in c or 'cod' in c or 'ref' in c), 'sku_generado')
     
     if not col_precio or not col_volumen:
         return None, f"❌ Error: No encuentro columnas de 'Precio' o 'Cantidad'. Las columnas detectadas son: {list(df.columns)}"
 
+    # C. Motor de Elasticidad (Simulación Consultiva)
     if 'elasticidad' not in df_temp.columns:
         df_temp['elasticidad_sim'] = np.random.uniform(0.6, 2.5, size=len(df_temp))
     
@@ -126,6 +132,7 @@ def procesar_datos_pricing(df, sensibilidad=1.0):
             precio_teorico = precio * 0.95
             precio_final = ajustar_a_psicologico(precio_teorico)
             
+            # Asumimos 0 ganancia si se recomienda bajar, el beneficio es volumen
             return 0, precio_final, f"⬇️ {accion_label}"
             
         return 0, precio, "✅ MANTENER"
@@ -157,6 +164,7 @@ with st.sidebar:
     st.subheader("⚙️ Calibración")
     sensibilidad = st.slider("Agresividad de Estrategia", 0.5, 2.0, 1.0, 0.1, help="Mayor agresividad busca márgenes más altos en productos elásticos.")
     
+    # --- TRUCO: MODO ADMIN OCULTO ---
     st.markdown("---")
     with st.expander("Zona Admin (Solo Eunoia)"):
         modo_admin = st.checkbox("Mostrar Precios Reales", value=False)
@@ -226,6 +234,7 @@ if error_msg and "❌ Error:" in error_msg:
         st.markdown(f"**Encabezados detectados:** `{list(df_raw.columns)}`")
         st.markdown("Necesitas que uno contenga *precio*/*venta*/*pvp* y otro *cant*/*volumen*/*unidades*/*anuales*.")
 
+
 elif df_final is not None and not df_final.empty: 
     
     # Cálculos Globales
@@ -246,4 +255,56 @@ elif df_final is not None and not df_final.empty:
     st.subheader("📍 Mapa de Oportunidad de Precios")
     fig = px.scatter(
         df_final, 
-        x="PRECIO_VISUAL",
+        x="PRECIO_VISUAL", 
+        y="VOLUMEN_VISUAL", 
+        color="estado",
+        size="dinero_mesa",
+        color_discrete_map={'⚠️ SUBIR PRECIO': '#00c853', '⬇️ BAJAR PRECIO': '#ffab00', '✅ MANTENER': '#444'},
+        hover_data=["SKU_VISUAL"],
+        log_x=True, log_y=True,
+        labels={"PRECIO_VISUAL": "Precio Actual ($)", "VOLUMEN_VISUAL": "Volumen de Venta"},
+        height=500
+    ) 
+    fig.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(255,255,255,0.05)')
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # 3. LA TABLA (CENSURADA O ABIERTA SEGÚN ADMIN)
+    st.subheader("🔓 Detalle de Acciones Sugeridas (Top 15)")
+    
+    col_tabla, col_cta = st.columns([3, 1])
+    
+    with col_tabla:
+        df_show = df_final[df_final['estado'] != '✅ MANTENER'].sort_values(by='dinero_mesa', ascending=False).head(15).copy()
+        
+        # Formateo
+        df_show['Precio Actual'] = df_show['PRECIO_VISUAL'].apply(lambda x: f"${x:,.2f}")
+        df_show['Impacto Profit ($)'] = df_show['dinero_mesa'].apply(lambda x: f"+${x:,.2f}")
+        
+        # --- LÓGICA DE CENSURA Y RENOMBRAMIENTO ---
+        if modo_admin:
+            # ADMIN: Mostrar datos reales
+            df_show['Acción Sugerida'] = df_show['estado'].str.replace('⚠️ ', '').str.replace('⬇️ ', '')
+            df_show['Precio Sugerido'] = df_show['precio_objetivo_interno'].apply(lambda x: f"${x:.2f}")
+            st.success("🔓 MODO ADMIN ACTIVADO: Precios visibles.")
+        else:
+            # CLIENTE: Mostrar bloqueo (Aquí se muestra el encabezado de acción)
+            df_show['Acción Sugerida'] = df_show['estado'].apply(lambda x: x.split(' ')[1] if ' ' in x else 'ACCIÓN').str.replace('PRECIO', 'PREMIUM')
+            df_show['Precio Sugerido'] = "🔒 BLOCKED"
+            
+        # Tabla Final (Orden de Columnas)
+        st.table(df_show[['SKU_VISUAL', 'Precio Actual', 'Acción Sugerida', 'Precio Sugerido', 'Impacto Profit ($)']])
+        
+    with col_cta:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown(f"""
+            <div class="locked-box">
+                <h3 style="color: #0080cd; margin:0;">Recupera tus ${dinero_mesa:,.0f}</h3>
+                <p style="font-size: 0.9rem; color: #ccc; margin-top: 10px;">
+                    El algoritmo ya calculó los <b>Precios Psicológicos</b> exactos (.99 / .95) para estos {skus_afectados} productos.
+                </p>
+                <br>
+                <a href="https://wa.me/593983959867?text=Hola,%20vi%20la%20simulación%20de%20precios%20y%20quiero%20el%20reporte%20desbloqueado." target="_blank" class="cta-button">
+                    SOLICITAR INFORME
+                </a>
+            </div>
+        """, unsafe_allow_html=True)
