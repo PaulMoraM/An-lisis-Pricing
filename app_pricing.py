@@ -2,10 +2,9 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-from io import StringIO
 import random
 
-# Fallback para Faker (Simulación)
+# Fallback para Faker
 try:
     from faker import Faker
     fake = Faker()
@@ -14,36 +13,35 @@ except ImportError:
         def catch_phrase(self): return "Producto Genérico"
     fake = Faker()
 
-URL_LOGO = "https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/eunoia-digital-logo.png"
-
-# --- 1. CONFIGURACIÓN ---
+# --- 1. CONFIGURACIÓN Y ESTILOS ---
 st.set_page_config(page_title="Eunoia Pricing Audit", page_icon="💎", layout="wide")
 
-# --- 2. ESTILOS EUNOIA ---
 def inyectar_estilos():
-    st.markdown(f"""
+    st.markdown("""
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700&display=swap');
-            html, body, [class*="css"] {{ font-family: 'Montserrat', sans-serif; }}
-            [data-testid="stMetricValue"] {{ color: #0080cd; font-size: 2.2rem; font-weight: 700; }}
-            .locked-box {{
+            html, body, [class*="css"] { font-family: 'Montserrat', sans-serif; }
+            [data-testid="stMetricValue"] { color: #0080cd; font-size: 2.2rem; font-weight: 700; }
+            
+            /* Caja de Conversión Eunoia */
+            .locked-box {
                 background-color: #161b22; padding: 25px; border-radius: 12px;
                 border: 1px solid #0080cd; text-align: center;
                 box-shadow: 0 4px 15px rgba(0,128,205,0.2);
-            }}
-            .cta-button {{
+            }
+            .cta-button {
                 display: block; width: 100%; background-color: #00c853; 
                 color: white !important; padding: 15px; text-align: center;
                 border-radius: 8px; font-weight: bold; text-decoration: none;
                 margin-top: 15px; transition: 0.3s;
-            }}
-            .cta-button:hover {{ background-color: #00e676; transform: scale(1.02); }}
+            }
+            .cta-button:hover { background-color: #00e676; transform: scale(1.02); }
         </style>
     """, unsafe_allow_html=True)
 
 inyectar_estilos()
 
-# --- 3. MOTOR DE PRICING ---
+# --- 2. MOTOR DE CÁLCULO ---
 def ajustar_a_psicologico(precio):
     if pd.isna(precio): return 0
     entero = int(precio)
@@ -53,101 +51,123 @@ def ajustar_a_psicologico(precio):
     else: return entero + 0.99
 
 @st.cache_data
-def procesar_datos_pricing(df, sensibilidad=1.0):
-    if df is None or df.empty: return None, "No hay datos."
+def procesar_data(df, agresividad=1.0):
     df_t = df.copy()
     df_t.columns = [str(c).strip().lower() for c in df_t.columns]
     
-    c_p = next((c for c in df_t.columns if any(p in c for p in ['precio', 'pvp', 'venta'])), None)
-    c_v = next((c for c in df_t.columns if any(v in c for v in ['cant', 'vol', 'unid'])), None)
-    c_s = next((c for c in df_t.columns if any(s in c for s in ['sku', 'prod', 'cod', 'ref'])), 'sku_gen')
+    # Mapeo inteligente de columnas
+    c_p = next((c for c in df_t.columns if any(p in c for p in ['precio', 'pvp', 'venta'])), 'precio')
+    c_v = next((c for c in df_t.columns if any(v in c for v in ['cant', 'vol', 'unid'])), 'cantidad')
+    c_s = next((c for c in df_t.columns if any(s in c for s in ['sku', 'prod', 'cod'])), 'sku')
     
-    if not c_p or not c_v: return None, "Faltan columnas clave."
-
-    df_t['elas'] = np.random.uniform(0.7, 2.3, size=len(df_t))
+    # Simulación de elasticidad para el gráfico
+    np.random.seed(42)
+    df_t['elas'] = np.random.uniform(0.7, 2.5, size=len(df_t))
     
-    def calc(row):
+    def estrategia(row):
         p, v, e = float(row[c_p]), float(row[c_v]), row['elas']
-        if e < 1.1:
-            p_f = ajustar_a_psicologico(p * (1 + (0.15 * sensibilidad)))
-            return (p_f - p) * v * 0.8, p_f, "SUBIR PRECIO"
-        elif e > 1.9:
-            return 0, ajustar_a_psicologico(p * 0.94), "BAJAR PRECIO"
+        if e < 1.15:
+            p_f = ajustar_a_psicologico(p * (1 + (0.12 * agresividad)))
+            return (p_f - p) * v * 0.9, p_f, "SUBIR PRECIO"
+        elif e > 1.85:
+            return 0, ajustar_a_psicologico(p * 0.92), "BAJAR PRECIO"
         return 0, p, "MANTENER"
 
-    res = df_t.apply(calc, axis=1)
-    df_t['ganancia'], df_t['p_sug'], df_t['estado'] = [x[0] for x in res], [x[1] for x in res], [x[2] for x in res]
-    df_t['SKU_V'] = df_t[c_s] if c_s != 'sku_gen' else [f"REF-{i}" for i in range(len(df_t))]
-    return df_t, None
+    res = df_t.apply(estrategia, axis=1)
+    df_t['Impacto Profit'], df_t['p_sug'], df_t['Acción Sugerida'] = [x[0] for x in res], [x[1] for x in res], [x[2] for x in res]
+    df_t['SKU_V'] = df_t[c_s]
+    return df_t
 
-# --- 4. SIDEBAR ---
+# --- 3. SIDEBAR ---
 with st.sidebar:
-    st.markdown(f'<div style="background:#fff; padding:10px; border-radius:10px;"><img src="{URL_LOGO}" width="100%"></div>', unsafe_allow_html=True)
+    st.image("https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/eunoia-digital-logo.png", use_container_width=True)
     st.header("⚙️ Configuración")
-    modo_entrada = st.radio("Origen de Datos:", ["🎲 Simulación", "📂 Subir Archivo"])
-    sensibilidad = st.slider("Agresividad", 0.5, 2.0, 1.0)
-    modo_admin = st.toggle("🔓 Modo Consultor (Revelar)")
+    modo_admin = st.toggle("🔓 Revelar Estrategia Oculta")
+    agresividad = st.slider("Agresividad del Algoritmo", 0.5, 2.0, 1.0)
+    st.info("Módulo de Pricing: Optimización de margen mediante elasticidad.")
 
-# --- 5. DATA ---
-if modo_entrada == "🎲 Simulación":
-    df_raw = pd.DataFrame([{"SKU": f"PR-{random.randint(1000,9999)}", "Precio": random.uniform(15, 250), "Cantidad": random.randint(100, 2000)} for _ in range(150)])
-else:
-    file = st.file_uploader("Cargar Excel/CSV", type=['xlsx', 'csv'])
-    df_raw = pd.read_excel(file) if file and file.name.endswith('xlsx') else (pd.read_csv(file) if file else None)
+# --- 4. DATA DE PRUEBA (DATASET MÁS AMPLIO) ---
+df_raw = pd.DataFrame([{
+    "SKU": f"PR-{random.randint(1000,9999)}",
+    "Precio": random.uniform(20, 300),
+    "Cantidad": random.randint(100, 3000)
+} for _ in range(100)])
 
-df_final, _ = procesar_datos_pricing(df_raw, sensibilidad) if df_raw is not None else (None, None)
+df_final = procesar_data(df_raw, agresividad)
 
-# --- 6. DASHBOARD ---
-if df_final is not None:
-    st.title("💎 Auditoría de Estrategia de Precios")
+# --- 5. DASHBOARD ---
+st.title("💎 Auditoría de Estrategia de Precios")
+
+# KPIs
+total_extra = df_final['Impacto Profit'].sum()
+c1, c2, c3 = st.columns(3)
+c1.metric("Dinero sobre la mesa", f"${total_extra:,.0f}")
+c2.metric("Productos Críticos", len(df_final[df_final['Acción Sugerida'] != "MANTENER"]))
+c3.metric("EBITDA Incremental", "+5.4%")
+
+st.divider()
+
+# --- GRÁFICO DE ALTO CONTRASTE ---
+st.subheader("📍 Mapa de Oportunidad de Precios")
+# Colores corregidos: Verde Neón, Rojo Intenso y Gris Claro para contraste máximo
+color_map = {
+    'SUBIR PRECIO': '#00ff88', # Verde flúor
+    'BAJAR PRECIO': '#ff1744', # Rojo vibrante
+    'MANTENER': '#607d8b'      # Gris azulado (no se pierde en el fondo)
+}
+
+fig = px.scatter(df_final, x='precio', y='cantidad', color='Acción Sugerida', 
+                 size='Impacto Profit', hover_data=['SKU_V'],
+                 color_discrete_map=color_map, log_x=True, log_y=True, height=500)
+
+fig.update_layout(
+    template="plotly_dark",
+    paper_bgcolor='rgba(0,0,0,0)',
+    plot_bgcolor='rgba(255,255,255,0.05)',
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+)
+st.plotly_chart(fig, use_container_width=True)
+
+
+
+# --- TABLA PROFESIONAL ---
+st.subheader("🔓 Plan de Optimización Detallado")
+col_t, col_c = st.columns([2.5, 1])
+
+with col_t:
+    # Preparar tabla visual
+    df_out = df_final[df_final['Acción Sugerida'] != 'MANTENER'].sort_values('Impacto Profit', ascending=False).head(20).copy()
     
-    # KPIs
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Dinero sobre la mesa", f"${df_final['ganancia'].sum():,.0f}")
-    c2.metric("SKUs a Optimizar", len(df_final[df_final['estado'] != "MANTENER"]))
-    c3.metric("Impacto EBITDA", "+5.2%")
-
-    st.divider()
-
-    # GRÁFICO CON COLORES CORREGIDOS (ALTO CONTRASTE)
-    st.subheader("📍 Mapa de Oportunidad de Precios")
-    fig = px.scatter(df_final, x=df_final.columns[1], y=df_final.columns[2], color="estado", size="ganancia",
-                     color_discrete_map={
-                         'SUBIR PRECIO': '#00e676', # Verde Neón
-                         'BAJAR PRECIO': '#ff3d00', # Rojo Vibrante
-                         'MANTENER': '#ffffff'     # Blanco Puro (Contraste Máximo)
-                     },
-                     hover_data=["SKU_V"], log_x=True, log_y=True, height=500)
-    fig.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(255,255,255,0.05)')
-    st.plotly_chart(fig, use_container_width=True)
-
-    # TABLA Y CTA
-    st.subheader("🔓 Detalle de Acciones Sugeridas")
-    col_t, col_c = st.columns([3, 1])
+    # Formateo de columnas para que se vean "Agradables"
+    df_out['Precio Actual'] = df_out['precio'].map("${:,.2f}".format)
     
-    with col_t:
-        df_vis = df_final[df_final['estado'] != 'MANTENER'].sort_values('ganancia', ascending=False).head(15).copy()
-        df_vis['Precio Actual'] = df_vis.iloc[:, 1].apply(lambda x: f"${x:,.2f}")
-        df_vis['Precio Sugerido'] = df_vis['p_sug'].apply(lambda x: f"${x:,.2f}" if modo_admin else "🔒 BLOQUEADO")
-        df_vis['Impacto Profit'] = df_vis['ganancia'].apply(lambda x: f"+${x:,.2f}" if modo_admin else "⭐ ANALIZADO")
-        
-        # Títulos de tabla simplificados
-        st.table(df_vis[['SKU_V', 'Precio Actual', 'estado', 'Precio Sugerido', 'Impacto Profit']].rename(
-            columns={'SKU_V': 'Referencia SKU', 'estado': 'Acción Sugerida'}
-        ))
+    if modo_admin:
+        df_out['Precio Sugerido'] = df_out['p_sug'].map("${:,.2f}".format)
+        df_out['Ganancia Extra'] = df_out['Impacto Profit'].map("+ ${:,.0f}".format)
+    else:
+        df_out['Precio Sugerido'] = "🔒 BLOQUEADO"
+        df_out['Ganancia Extra'] = "⭐ ANALIZADO"
 
-    with col_c:
-        st.markdown(f"""
-            <div class="locked-box">
-                <h3 style="color: #0080cd; margin:0;">Recupera tus ${df_final['ganancia'].sum():,.0f}</h3>
-                <p style="font-size: 0.9rem; color: #ccc; margin-top: 10px;">
-                    Análisis finalizado. El algoritmo ha definido los precios psicológicos (.99) óptimos para su inventario.
-                </p>
-                <a href="https://wa.me/593983959867" class="cta-button">SOLICITAR INFORME</a>
-            </div>
-        """, unsafe_allow_html=True)
+    # Seleccionamos y renombramos con títulos limpios
+    tabla_final = df_out[['SKU_V', 'Precio Actual', 'Acción Sugerida', 'Precio Sugerido', 'Ganancia Extra']]
+    tabla_final.columns = ['Referencia SKU', 'Precio Actual', 'Acción Sugerida', 'Precio Sugerido', 'Ganancia Extra']
 
-# --- 7. PIE DE PÁGINA ---
+    # Usamos st.dataframe para un look moderno (con búsqueda y ordenamiento)
+    st.dataframe(tabla_final, use_container_width=True, hide_index=True)
+
+with col_c:
+    st.markdown(f"""
+        <div class="locked-box">
+            <h3 style="color: white; margin:0;">Recupera tus <br><span style="color:#0080cd;">${total_extra:,.0f}</span></h3>
+            <p style="font-size: 0.85rem; color: #ccc; margin-top: 10px;">
+                Hemos detectado ineficiencias en su política de precios. El 15% de su catálogo está subvalorado.
+            </p>
+            <hr style="border:0.1px solid #333">
+            <a href="https://wa.me/593983959867" class="cta-button">ADQUIRIR PLAN</a>
+        </div>
+    """, unsafe_allow_html=True)
+
+# --- 6. PIE DE PÁGINA ---
 st.markdown("<br><br>", unsafe_allow_html=True)
 st.markdown("---")
 st.caption("© 2025 Eunoia Digital Ecuador")
