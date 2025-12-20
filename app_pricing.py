@@ -13,6 +13,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Definición de URLs de imagen
+URL_LOGO = "https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/eunoia-digital-logo.png"
+URL_BANNER = "https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/banner_redes.png"
+
 def inyectar_estilos():
     st.markdown("""
         <style>
@@ -49,12 +53,15 @@ def inyectar_estilos():
 
 inyectar_estilos()
 
-# --- 2. BARRA LATERAL (LOGO Y CARGA) ---
+# --- 2. BANNER SUPERIOR (Único cambio solicitado) ---
+st.image(URL_BANNER, use_container_width=True)
+
+# --- 3. BARRA LATERAL (LOGO Y CARGA) ---
 with st.sidebar:
     # Logo con fondo blanco para contraste
-    st.markdown("""
+    st.markdown(f"""
         <div class="logo-container">
-            <img src="https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/eunoia-digital-logo.png" width="180">
+            <img src="{URL_LOGO}" width="180">
         </div>
     """, unsafe_allow_html=True)
     
@@ -66,7 +73,7 @@ with st.sidebar:
     st.divider()
     st.info("Para este análisis, se recomienda contar con al menos 12 meses de información de ventas para capturar la estacionalidad correctamente.")
 
-# --- 3. MOTOR DE DATOS (Real vs Simulación) ---
+# --- 4. MOTOR DE DATOS ---
 def ajustar_a_psicologico(p):
     entero = int(p)
     dec = p - entero
@@ -77,17 +84,10 @@ def ajustar_a_psicologico(p):
 @st.cache_data
 def procesar_data(file):
     if file is not None:
-        # Carga de datos reales
         df = pd.read_excel(file)
-        # Mapeo de columnas según la plantilla
-        map_cols = {
-            'Codigo': 'SKU',
-            'PVP': 'Precio Actual',
-            'Ventas Anuales': 'Ventas'
-        }
+        map_cols = {'Codigo': 'SKU', 'PVP': 'Precio Actual', 'Ventas Anuales': 'Ventas'}
         df = df.rename(columns=map_cols)
     else:
-        # Datos de Simulación
         np.random.seed(42)
         df = pd.DataFrame({
             "SKU": [f"PR-{random.randint(1000,9999)}" for _ in range(120)],
@@ -95,7 +95,6 @@ def procesar_data(file):
             "Ventas": np.random.randint(100, 5000, 120),
         })
     
-    # Simulación de elasticidad para el diagnóstico
     df['Elasticidad'] = np.random.uniform(0.5, 3.0, len(df))
     
     def clasificar(row):
@@ -114,7 +113,7 @@ def procesar_data(file):
 
 df = procesar_data(archivo_subido)
 
-# --- 4. DASHBOARD ---
+# --- 5. DASHBOARD ---
 st.title(f"💎 Auditoría de Precios: {nombre_cliente}")
 
 c1, c2, c3 = st.columns(3)
@@ -124,9 +123,8 @@ c3.metric("Impacto EBITDA", "+5.7%")
 
 st.divider()
 
-# --- 5. GRÁFICO ---
+# Gráfico
 st.subheader("📍 Mapa Estratégico de Oportunidad")
-
 color_map = {'SUBIR PRECIO': '#00ffcc', 'BAJAR PRECIO': '#ff4b4b', 'MANTENER': '#ffffff'}
 
 fig = px.scatter(df, x="Precio Actual", y="Ventas", color="Acción", 
@@ -167,4 +165,4 @@ with col_c:
     """, unsafe_allow_html=True)
 
 st.markdown("---")
-st.caption("© 2025 Eunoia Digital Ecuador")
+st.caption(f"© {datetime.now().year} Eunoia Digital Ecuador")
