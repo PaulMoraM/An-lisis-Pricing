@@ -4,7 +4,7 @@ import numpy as np
 import plotly.express as px
 import random
 import os
-from datetime import datetime # IMPORTANTE: Esto corrige el NameError
+from datetime import datetime
 
 # --- 1. CONFIGURACIÓN EUNOIA ---
 st.set_page_config(
@@ -18,21 +18,15 @@ def inyectar_estilos():
     st.markdown("""
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700&display=swap');
-            html, body, [class*="css"] { font-family: 'Montserrat', sans-serif; background-color: #0e1117; }
+            html, body, [class*=\"css\"] { font-family: 'Montserrat', sans-serif; background-color: #0e1117; }
             
-            /* Badge blanco para el Logo en el Sidebar */
             .logo-container {
-                background-color: white;
-                padding: 20px;
-                border-radius: 12px;
-                margin-bottom: 25px;
-                text-align: center;
+                background-color: white; padding: 20px; border-radius: 12px;
+                margin-bottom: 25px; text-align: center;
             }
 
-            /* Métricas Eunoia */
             [data-testid="stMetricValue"] { color: #0080cd; font-size: 2.2rem; font-weight: 700; }
             
-            /* Caja de Conversión */
             .locked-box {
                 background-color: #161b22; padding: 25px; border-radius: 12px;
                 border: 1px solid #0080cd; text-align: center;
@@ -50,12 +44,11 @@ def inyectar_estilos():
 
 inyectar_estilos()
 
-# --- 2. BANNER DE MARCA (Único cambio de diseño) ---
+# --- 2. BANNER DE MARCA ---
 st.image("https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/banner_redes.png", use_container_width=True)
 
-# --- 3. BARRA LATERAL (LOGO Y CARGA) ---
+# --- 3. BARRA LATERAL ---
 with st.sidebar:
-    # Logo con fondo blanco para contraste
     st.markdown("""
         <div class="logo-container">
             <img src="https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/eunoia-digital-logo.png" width="180">
@@ -64,13 +57,12 @@ with st.sidebar:
     
     st.header("📂 Datos del Cliente")
     nombre_cliente = st.text_input("Nombre de la Empresa", "Cliente Demo S.A.")
-    
     archivo_subido = st.file_uploader("Cargar Plantilla Eunoia (.xlsx)", type=["xlsx"])
     
     st.divider()
-    st.info("Para este análisis, se recomienda contar con al menos 12 meses de información de ventas para capturar la estacionalidad correctamente.")
+    st.info("Este diagnóstico identifica oportunidades de margen mediante el análisis de elasticidad precio de la demanda.")
 
-# --- 4. MOTOR DE DATOS (Real vs Simulación) ---
+# --- 4. MOTOR DE DATOS ---
 def ajustar_a_psicologico(p):
     entero = int(p)
     dec = p - entero
@@ -81,17 +73,10 @@ def ajustar_a_psicologico(p):
 @st.cache_data
 def procesar_data(file):
     if file is not None:
-        # Carga de datos reales
         df = pd.read_excel(file)
-        # Mapeo de columnas según la plantilla
-        map_cols = {
-            'Codigo': 'SKU',
-            'PVP': 'Precio Actual',
-            'Ventas Anuales': 'Ventas'
-        }
+        map_cols = {'Codigo': 'SKU', 'PVP': 'Precio Actual', 'Ventas Anuales': 'Ventas'}
         df = df.rename(columns=map_cols)
     else:
-        # Datos de Simulación
         np.random.seed(42)
         df = pd.DataFrame({
             "SKU": [f"PR-{random.randint(1000,9999)}" for _ in range(120)],
@@ -99,7 +84,6 @@ def procesar_data(file):
             "Ventas": np.random.randint(100, 5000, 120),
         })
     
-    # Simulación de elasticidad para el diagnóstico
     df['Elasticidad'] = np.random.uniform(0.5, 3.0, len(df))
     
     def clasificar(row):
@@ -124,37 +108,39 @@ st.title(f"💎 Auditoría de Precios: {nombre_cliente}")
 c1, c2, c3 = st.columns(3)
 c1.metric("Dinero sobre la mesa", f"${df['Profit'].sum():,.0f}")
 c2.metric("Oportunidades de Alza", len(df[df['Acción'] == "SUBIR PRECIO"]))
-c3.metric("Impacto EBITDA", "+5.7%")
+c3.metric("Impacto EBITDA Est.", "+5.7%")
 
 st.divider()
 
-# --- 6. GRÁFICO ---
+# --- 6. GRÁFICO (Visualización de oportunidad) ---
 st.subheader("📍 Mapa Estratégico de Oportunidad")
-
 color_map = {'SUBIR PRECIO': '#00ffcc', 'BAJAR PRECIO': '#ff4b4b', 'MANTENER': '#ffffff'}
 
 fig = px.scatter(df, x="Precio Actual", y="Ventas", color="Acción", 
                  size="Tamaño_Visual", size_max=30,
                  color_discrete_map=color_map,
-                 hover_data={"SKU": True, "Precio Actual": ":.2f", "Ventas": True, "Profit": ":,.0f"},
+                 # Eliminamos 'Profit' del hover para no revelar datos exactos por punto
+                 hover_data={"SKU": True, "Precio Actual": ":.2f", "Ventas": True, "Acción": True},
                  log_x=True, height=500)
 
 fig.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='#1c2128')
 st.plotly_chart(fig, use_container_width=True)
 
-# --- 7. TABLA Y CTA ---
+# --- 7. TABLA Y CTA (BLOQUEO TOTAL) ---
 col_t, col_c = st.columns([2.5, 1])
 
 with col_t:
     st.subheader("🔓 Detalle del Análisis")
-    modo_admin = st.toggle("🔓 Revelar Precios Sugeridos")
-    
+    st.warning("🔒 Los resultados detallados por SKU están bloqueados. Adquiera el reporte completo para desbloquear los precios sugeridos e impactos individuales.")
+
     df_v = df[df['Acción'] != "MANTENER"].sort_values("Profit", ascending=False).head(15).copy()
-    df_v['Precio Sugerido'] = df_v['Precio Sugerido'].map("${:,.2f}".format) if modo_admin else "🔒 BLOQUEADO"
-    df_v['Impacto'] = df_v['Profit'].map("+${:,.0f}".format) if modo_admin else "⭐ ANALIZADO"
+    
+    # BLOQUEO HARDCODED: No hay forma de activarlo desde la interfaz
+    df_v['Sugerido'] = "🔒 BLOQUEADO"
+    df_v['Impacto'] = "⭐ REQUIERE PLAN"
     
     st.dataframe(
-        df_v[['SKU', 'Precio Actual', 'Acción', 'Precio Sugerido', 'Impacto']].rename(columns={'Acción': 'Acción Sugerida'}),
+        df_v[['SKU', 'Precio Actual', 'Acción', 'Sugerido', 'Impacto']].rename(columns={'Acción': 'Acción Sugerida'}),
         use_container_width=True, hide_index=True
     )
 
@@ -164,12 +150,11 @@ with col_c:
         <div class="locked-box">
             <h3 style="color: white; margin:0;">Recupera tus <br><span style="color:#0080cd;">${df['Profit'].sum():,.0f}</span></h3>
             <p style="font-size: 0.85rem; color: #ccc; margin-top: 15px;">
-                Identificamos productos con elasticidad inelástica para optimizar tus márgenes.
+                Identificamos los productos donde tu cliente está dispuesto a pagar más. Obtén el listado completo y optimiza tu margen hoy.
             </p>
-            <a href="https://wa.me/593983959867" class="cta-button">ADQUIRIR PLAN COMPLETO</a>
+            <a href="https://wa.me/593983959867" class="cta-button">ADQUIRIR REPORTE FULL</a>
         </div>
     """, unsafe_allow_html=True)
 
 st.markdown("---")
-# Usando la librería datetime cargada arriba para evitar el NameError
 st.caption(f"© {datetime.now().year} Eunoia Digital Ecuador")
