@@ -4,6 +4,7 @@ import numpy as np
 import plotly.express as px
 import random
 import os
+from datetime import datetime # IMPORTANTE: Esto corrige el NameError
 
 # --- 1. CONFIGURACIÓN EUNOIA ---
 st.set_page_config(
@@ -12,10 +13,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# Definición de URLs de imagen
-URL_LOGO = "https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/eunoia-digital-logo.png"
-URL_BANNER = "https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/banner_redes.png"
 
 def inyectar_estilos():
     st.markdown("""
@@ -53,15 +50,15 @@ def inyectar_estilos():
 
 inyectar_estilos()
 
-# --- 2. BANNER SUPERIOR (Único cambio solicitado) ---
-st.image(URL_BANNER, use_container_width=True)
+# --- 2. BANNER DE MARCA (Único cambio de diseño) ---
+st.image("https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/banner_redes.png", use_container_width=True)
 
 # --- 3. BARRA LATERAL (LOGO Y CARGA) ---
 with st.sidebar:
     # Logo con fondo blanco para contraste
-    st.markdown(f"""
+    st.markdown("""
         <div class="logo-container">
-            <img src="{URL_LOGO}" width="180">
+            <img src="https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/eunoia-digital-logo.png" width="180">
         </div>
     """, unsafe_allow_html=True)
     
@@ -73,7 +70,7 @@ with st.sidebar:
     st.divider()
     st.info("Para este análisis, se recomienda contar con al menos 12 meses de información de ventas para capturar la estacionalidad correctamente.")
 
-# --- 4. MOTOR DE DATOS ---
+# --- 4. MOTOR DE DATOS (Real vs Simulación) ---
 def ajustar_a_psicologico(p):
     entero = int(p)
     dec = p - entero
@@ -84,10 +81,17 @@ def ajustar_a_psicologico(p):
 @st.cache_data
 def procesar_data(file):
     if file is not None:
+        # Carga de datos reales
         df = pd.read_excel(file)
-        map_cols = {'Codigo': 'SKU', 'PVP': 'Precio Actual', 'Ventas Anuales': 'Ventas'}
+        # Mapeo de columnas según la plantilla
+        map_cols = {
+            'Codigo': 'SKU',
+            'PVP': 'Precio Actual',
+            'Ventas Anuales': 'Ventas'
+        }
         df = df.rename(columns=map_cols)
     else:
+        # Datos de Simulación
         np.random.seed(42)
         df = pd.DataFrame({
             "SKU": [f"PR-{random.randint(1000,9999)}" for _ in range(120)],
@@ -95,6 +99,7 @@ def procesar_data(file):
             "Ventas": np.random.randint(100, 5000, 120),
         })
     
+    # Simulación de elasticidad para el diagnóstico
     df['Elasticidad'] = np.random.uniform(0.5, 3.0, len(df))
     
     def clasificar(row):
@@ -123,8 +128,9 @@ c3.metric("Impacto EBITDA", "+5.7%")
 
 st.divider()
 
-# Gráfico
+# --- 6. GRÁFICO ---
 st.subheader("📍 Mapa Estratégico de Oportunidad")
+
 color_map = {'SUBIR PRECIO': '#00ffcc', 'BAJAR PRECIO': '#ff4b4b', 'MANTENER': '#ffffff'}
 
 fig = px.scatter(df, x="Precio Actual", y="Ventas", color="Acción", 
@@ -136,7 +142,7 @@ fig = px.scatter(df, x="Precio Actual", y="Ventas", color="Acción",
 fig.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='#1c2128')
 st.plotly_chart(fig, use_container_width=True)
 
-# --- 6. TABLA Y CTA ---
+# --- 7. TABLA Y CTA ---
 col_t, col_c = st.columns([2.5, 1])
 
 with col_t:
@@ -165,4 +171,5 @@ with col_c:
     """, unsafe_allow_html=True)
 
 st.markdown("---")
+# Usando la librería datetime cargada arriba para evitar el NameError
 st.caption(f"© {datetime.now().year} Eunoia Digital Ecuador")
