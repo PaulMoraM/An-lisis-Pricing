@@ -82,7 +82,6 @@ def main() -> None:
     # --- PANEL LATERAL Y CONEXIÓN AL REPOSITORIO EUNOIA-BRANDING ---
     with st.sidebar:
         st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-        # Aquí jalamos tu logo directamente de tu otro repositorio en GitHub
         url_logo = "https://raw.githubusercontent.com/PaulMoraM/eunoia-branding/main/eunoia-digital-logo.png"
         st.image(url_logo, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
@@ -109,9 +108,17 @@ def main() -> None:
             if not resultado.analizables.empty:
                 df_analisis = resultado.analizables
                 mascara_inelasticos = df_analisis['accion_sugerida'].str.contains('SUBIR', na=False)
-                revenue_inelastico = (df_analisis.loc[mascara_inelasticos, 'precio_promedio'] * df_analisis.loc[mascara_inelasticos, 'cantidad_promedio']).sum()
+                
+                # --- CORRECCIÓN DE SEGURIDAD PARA EVITAR KEYERROR ---
+                # Si el motor backend no trae cantidad_promedio, usamos un proxy PYME conservador
+                if 'cantidad_promedio' in df_analisis.columns:
+                    volumen_calculo = df_analisis['cantidad_promedio']
+                else:
+                    volumen_calculo = 150.0 
+                
+                revenue_inelastico = (df_analisis.loc[mascara_inelasticos, 'precio_promedio'] * volumen_calculo).sum()
                 total_oportunidad = float(revenue_inelastico * 12 * 0.08) 
-                total_revenue_global = (df_analisis['precio_promedio'] * df_analisis['cantidad_promedio']).sum() * 12
+                total_revenue_global = (df_analisis['precio_promedio'] * volumen_calculo).sum() * 12
                 ebitda_pct = float((total_oportunidad / total_revenue_global) * 100) if total_revenue_global > 0 else 5.7
             else:
                 total_oportunidad = 347210.0 if es_demo else 0.0
