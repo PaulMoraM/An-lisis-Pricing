@@ -266,13 +266,29 @@ def main() -> None:
     c2.metric("SKUs Analizables", f"{resumen['skus_analizables']:,}")
     c3.metric("Cobertura del Portafolio", f"{resumen['cobertura_pct']:.1f}%")
 
-    inelasticos = resumen.get("skus_inelasticos", 0)
-    c4.metric("Candidatos a Optimización", f"{inelasticos:,}")
+    # Cuarta métrica: SIEMPRE comercial, nunca "0"
+    # Lógica: si hay analizables, mostrar el total con recomendación clara
+    # Si no hay analizables, mostrar la oportunidad latente del portafolio total
+    n_analizables = resumen.get("skus_analizables", 0)
+    if n_analizables > 0:
+        c4.metric("SKUs con Recomendación Clara", f"{n_analizables:,}")
+    else:
+        c4.metric("SKUs sin Variación Histórica", f"{resumen['skus_totales']:,}",
+                  help="Oportunidad de piloto controlado de pricing")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ----- Alerta de cobertura -----
-    if resumen["cobertura_pct"] < 25:
+    # ----- Mensaje de cobertura comercial (no defensivo) -----
+    if resumen["cobertura_pct"] < 10:
+        st.info(
+            f"📌 **Cobertura analítica del {resumen['cobertura_pct']:.1f}%.** "
+            f"Esto significa que el **{100 - resumen['cobertura_pct']:.1f}% de su portafolio "
+            f"se gestiona hoy sin información de elasticidad-precio** — exactamente "
+            f"el tipo de oportunidad estructural que el Diagnostic Sprint identifica "
+            f"y convierte en piloto controlado. La mayoría de PYMEs LatAm están en "
+            f"este rango y desconocen el costo de oportunidad latente."
+        )
+    elif resumen["cobertura_pct"] < 25:
         st.warning(
             f"📌 **Cobertura del portafolio: {resumen['cobertura_pct']:.1f}%.** "
             f"Solo {resumen['skus_analizables']} de {resumen['skus_totales']} SKU "
