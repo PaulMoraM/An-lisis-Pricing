@@ -2,5 +2,5 @@ streamlit
 pandas
 numpy
 plotly
-faker
-openpyxl
+statsmodels>=0.14.0
+scipy
