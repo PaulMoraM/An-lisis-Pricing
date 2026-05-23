@@ -314,46 +314,97 @@ def main() -> None:
     col_t, col_c = st.columns([2.5, 1])
 
     with col_t:
-        st.subheader("🔓 Detalle por SKU")
+        st.subheader("🔓 Detalle de Oportunidad por Categoría")
         st.warning(
-            "🔒 El detalle por SKU (elasticidades específicas, precios sugeridos, "
-            "intervalos de confianza, magnitud del impacto financiero) se entrega "
-            "como parte del **Diagnostic Sprint** ($1,497, 5 días, garantía 3x). "
-            "Aquí solo se muestra el conteo agregado por categoría."
+            "🔒 El detalle por SKU (precios sugeridos exactos, impacto financiero individual, "
+            "intervalos de confianza) se entrega como parte del **Diagnostic Sprint** "
+            "($1,497, 5 días, garantía 3x). Aquí se muestra el resumen comercial agregado."
         )
 
         if not resultado.analizables.empty:
-            # Vista censurada: solo categorías agregadas, sin SKU específicos
+            # Construir tabla COMERCIAL (no econométrica)
             df_vista = resultado.analizables.copy()
-            df_vista["categoria_elasticidad"] = pd.cut(
-                df_vista["elasticidad"],
-                bins=[-np.inf, -1.5, -1.0, 0],
-                labels=["Demanda elástica (mantener o bajar)", "Zona neutral (A/B testear)", "Demanda inelástica (subir precio)"],
-            )
 
-            tabla_agregada = (
-                df_vista.groupby("categoria_elasticidad", observed=True)
-                .agg(
-                    cantidad_skus=("sku", "count"),
-                    elasticidad_promedio=("elasticidad", "mean"),
-                    confianza_modal=("confianza_recomendacion", lambda x: x.mode().iloc[0] if not x.empty else "—"),
+            # Categorización con emoji visual para escaneo rápido
+            def categorizar_comercial(elasticidad: float) -> str:
+                if elasticidad > -1:
+                    return "🟢 SUBIR PRECIO (demanda inelástica)"
+                if elasticidad < -1.5:
+                    return "🔴 MANTENER PRECIO (demanda elástica)"
+                return "🟡 ZONA NEUTRAL (requiere A/B test)"
+
+            df_vista["Categoría"] = df_vista["elasticidad"].apply(categorizar_comercial)
+
+            # Calcular rangos de captura por categoría para los SUBIR PRECIO
+            # (asumimos margen estándar 35% para escenarios conservador/agresivo)
+            MARGEN_PCT = 0.35
+
+            filas_tabla = []
+            for categoria_label in [
+                "🟢 SUBIR PRECIO (demanda inelástica)",
+                "🟡 ZONA NEUTRAL (requiere A/B test)",
+                "🔴 MANTENER PRECIO (demanda elástica)",
+            ]:
+                df_cat = df_vista[df_vista["Categoría"] == categoria_label]
+                if df_cat.empty:
+                    continue
+
+                n_sku = len(df_cat)
+                precio_prom = df_cat["precio_promedio"].mean()
+
+                if "SUBIR" in categoria_label:
+                    # Calcular rango de captura anual
+                    vol_anual = df_cat["cantidad_promedio"] * 12
+
+                    # Shock +5% conservador
+                    f5 = (1.05) ** df_cat["elasticidad"]
+                    profit_5 = (
+                        (df_cat["precio_promedio"] * 1.05 - df_cat["precio_promedio"] * (1 - MARGEN_PCT))
+                        * (vol_anual * f5)
+                        - df_cat["precio_promedio"] * MARGEN_PCT * vol_anual
+                    ).clip(lower=0).sum()
+
+                    # Shock +10% agresivo
+                    f10 = (1.10) ** df_cat["elasticidad"]
+                    profit_10 = (
+                        (df_cat["precio_promedio"] * 1.10 - df_cat["precio_promedio"] * (1 - MARGEN_PCT))
+                        * (vol_anual * f10)
+                        - df_cat["precio_promedio"] * MARGEN_PCT * vol_anual
+                    ).clip(lower=0).sum()
+
+                    rango = f"${min(profit_5, profit_10)/1000:,.0f}K – ${max(profit_5, profit_10)/1000:,.0f}K"
+                    accion_comercial = "Captura inmediata"
+                elif "NEUTRAL" in categoria_label:
+                    rango = "Requiere diagnóstico"
+                    accion_comercial = "A/B test 90 días"
+                else:
+                    rango = "Protección de margen"
+                    accion_comercial = "No subir, riesgo de volumen"
+
+                filas_tabla.append({
+                    "Categoría de Oportunidad": categoria_label,
+                    "SKU en categoría": n_sku,
+                    "Precio promedio": f"${precio_prom:,.0f}",
+                    "Captura anual estimada": rango,
+                    "Acción comercial": accion_comercial,
+                })
+
+            if filas_tabla:
+                tabla_comercial = pd.DataFrame(filas_tabla)
+                st.dataframe(
+                    tabla_comercial,
+                    use_container_width=True,
+                    hide_index=True,
                 )
-                .reset_index()
-            )
-            tabla_agregada["elasticidad_promedio"] = tabla_agregada["elasticidad_promedio"].round(2)
-
-            st.dataframe(
-                tabla_agregada.rename(columns={
-                    "categoria_elasticidad": "Categoría",
-                    "cantidad_skus": "SKU",
-                    "elasticidad_promedio": "β promedio",
-                    "confianza_modal": "Confianza típica",
-                }),
-                use_container_width=True,
-                hide_index=True,
-            )
+            else:
+                st.info("Sin SKU clasificables en categorías comerciales estándar.")
         else:
-            st.info("No hay SKU analizables en este portafolio. Se recomienda piloto controlado.")
+            st.info(
+                "📋 **Diagnóstico de portafolio sin SKU analizables.** "
+                "Este portafolio requiere diseño de piloto controlado de A/B testing "
+                "de precios antes de poder estimar elasticidades. Este es el "
+                "primer entregable del Diagnostic Sprint."
+            )
 
     with col_c:
         # Rango híbrido (no cifra exacta)
@@ -393,20 +444,42 @@ def main() -> None:
                 </div>
             """, unsafe_allow_html=True)
 
-    # ----- Nota metodológica al pie -----
+    # ----- Nota metodológica al pie (robusto si el motor no expone metodologia) -----
     st.markdown("---")
     with st.expander("📖 Metodología y limitaciones"):
-        meta = resultado.metodologia
-        st.markdown(f"**Modelo:** {meta['modelo']}")
-        st.markdown("**Controles aplicados:**")
-        for c in meta["controles_aplicados"]:
-            st.markdown(f"- {c}")
-        st.markdown("**Diagnósticos calculados:**")
-        for d in meta["diagnosticos_calculados"]:
-            st.markdown(f"- {d}")
-        st.markdown("**Limitaciones conocidas:**")
-        for l in meta["limitaciones_conocidas"]:
-            st.markdown(f"- {l}")
+        meta = getattr(resultado, "metodologia", None)
+        if meta:
+            st.markdown(f"**Modelo:** {meta.get('modelo', 'Regresión OLS log-log')}")
+            if "controles_aplicados" in meta:
+                st.markdown("**Controles aplicados:**")
+                for c in meta["controles_aplicados"]:
+                    st.markdown(f"- {c}")
+            if "diagnosticos_calculados" in meta:
+                st.markdown("**Diagnósticos calculados:**")
+                for d in meta["diagnosticos_calculados"]:
+                    st.markdown(f"- {d}")
+            if "limitaciones_conocidas" in meta:
+                st.markdown("**Limitaciones conocidas:**")
+                for l in meta["limitaciones_conocidas"]:
+                    st.markdown(f"- {l}")
+        else:
+            # Fallback si el motor desplegado no incluye metodologia
+            st.markdown("**Modelo:** Regresión OLS log-log con dummies estacionales mensuales.")
+            st.markdown("**Controles aplicados:**")
+            st.markdown("- Exclusión de períodos con stock-out marcado")
+            st.markdown("- Exclusión de períodos con promoción activa")
+            st.markdown("- Dummies estacionales mensuales (base = enero)")
+            st.markdown("- Agregación temporal semanal (>2 años) o mensual (<=2 años)")
+            st.markdown("**Diagnósticos calculados:**")
+            st.markdown("- R² (varianza explicada), p-value del coeficiente β")
+            st.markdown("- Durbin-Watson (autocorrelación residuos)")
+            st.markdown("- Breusch-Pagan (heteroscedasticidad)")
+            st.markdown("- Intervalo de confianza al 95% para β")
+            st.markdown("**Limitaciones conocidas:**")
+            st.markdown("- Asume estabilidad estructural en el período analizado")
+            st.markdown("- No corrige por endogeneidad simultánea (oferta-demanda)")
+            st.markdown("- No incorpora elasticidades cruzadas entre SKU")
+            st.markdown("- Extrapolación fuera del rango histórico observado requiere piloto controlado")
 
 
 if __name__ == "__main__":
