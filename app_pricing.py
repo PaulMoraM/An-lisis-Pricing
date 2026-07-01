@@ -1,7 +1,7 @@
 """
 app_pricing.py
 ==============
-Lead magnet web de Eunoia Digital — Sentinel V2 (Pricing Audit).
+Lead magnet web de Eunoia Digital — Estrategia de Precios (Calculadora de Fuga de Margen).
 
 Single Source of Truth: el motor pricing_engine se ejecuta SIEMPRE,
 tanto en demo (sobre datos sintéticos) como con archivo del cliente.
@@ -32,7 +32,7 @@ from synthetic_data import generar_dataset_pyme
 # ---------------------------------------------------------------------------
 
 st.set_page_config(
-    page_title="Eunoia Pricing Audit",
+    page_title="Eunoia Digital | Estrategia de Precios",
     page_icon="💎",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -227,7 +227,7 @@ def main() -> None:
     # Banner
     st.image(URL_BANNER, use_container_width=True)
     st.markdown("<br>", unsafe_allow_html=True)
-    st.title("Sentinel | Auditoría de Pricing")
+    st.title("Estrategia de Precios | Diagnóstico de Fuga de Margen")
     st.markdown("### Diagnóstico de Elasticidad-Precio y Recuperación de Margen")
     st.markdown("---")
 
@@ -284,7 +284,7 @@ def main() -> None:
             f"📌 **Cobertura analítica del {resumen['cobertura_pct']:.1f}%.** "
             f"Esto significa que el **{100 - resumen['cobertura_pct']:.1f}% de su portafolio "
             f"se gestiona hoy sin información de elasticidad-precio** — exactamente "
-            f"el tipo de oportunidad estructural que el Diagnostic Sprint identifica "
+            f"el tipo de oportunidad estructural que el Diagnóstico de Rentabilidad identifica "
             f"y convierte en piloto controlado. La mayoría de PYMEs LatAm están en "
             f"este rango y desconocen el costo de oportunidad latente."
         )
@@ -333,8 +333,8 @@ def main() -> None:
         st.subheader("🔓 Detalle de Oportunidad por Categoría")
         st.warning(
             "🔒 El detalle por SKU (precios sugeridos exactos, impacto financiero individual, "
-            "intervalos de confianza) se entrega como parte del **Diagnostic Sprint** "
-            "($1,497, 5 días, garantía 3x). Aquí se muestra el resumen comercial agregado."
+            "intervalos de confianza) se entrega como parte del **Diagnóstico de Rentabilidad** "
+            "($1,497, garantía 3x). Aquí se muestra el resumen comercial agregado."
         )
 
         if not resultado.analizables.empty:
@@ -419,7 +419,7 @@ def main() -> None:
                 "📋 **Diagnóstico de portafolio sin SKU analizables.** "
                 "Este portafolio requiere diseño de piloto controlado de A/B testing "
                 "de precios antes de poder estimar elasticidades. Este es el "
-                "primer entregable del Diagnostic Sprint."
+                "primer entregable del Diagnóstico de Rentabilidad."
             )
 
     with col_c:
@@ -441,9 +441,9 @@ def main() -> None:
                         Cifra precisa requiere estructura de costos del cliente.
                     </p>
                     <p style="color: #ffffff; font-size: 0.8rem; font-weight: 700; margin-top: 10px; font-family:'Montserrat';">
-                        Garantía de Retorno 3x — Diagnostic Sprint
+                        Garantía de Retorno 3x — Diagnóstico de Rentabilidad
                     </p>
-                    <a href="{URL_CALENDLY}" target="_blank" class="btn-cta">Agendar Diagnostic Sprint</a>
+                    <a href="{URL_CALENDLY}" target="_blank" class="btn-cta">Agendar Diagnóstico de Rentabilidad</a>
                 </div>
             """, unsafe_allow_html=True)
         else:
@@ -456,7 +456,7 @@ def main() -> None:
                         Identificamos su estructura de elasticidades y recomendamos
                         diseño de piloto controlado para los SKU sin variación histórica.
                     </p>
-                    <a href="{URL_CALENDLY}" target="_blank" class="btn-cta">Agendar Diagnostic Sprint</a>
+                    <a href="{URL_CALENDLY}" target="_blank" class="btn-cta">Agendar Diagnóstico de Rentabilidad</a>
                 </div>
             """, unsafe_allow_html=True)
 
